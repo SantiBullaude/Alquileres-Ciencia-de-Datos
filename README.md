@@ -300,6 +300,63 @@ de `data/raw/` y `transform_clean` deduplica por `clave` quedandose con la
 observacion mas reciente. Entre corridas consecutivas aparecen entre 17 y 35
 avisos nuevos por dia, asi que la union suma filas reales.
 
+## Entrega 4: la aplicacion
+
+La version final del proyecto: una app de Streamlit, publicada en
+**[completar URL de Streamlit Community Cloud]**, que cuenta los hallazgos
+de las tres entregas anteriores (el tallo: *El proyecto*, *Los datos*, *Lo
+que encontramos*, *El modelo*) y deja usarlos (la copa: *Explora* y *Proba
+el modelo*). El codigo vive en `app/`.
+
+| Archivo | Que hace |
+|---|---|
+| `app/build_app.py` | Toma el CSV mas reciente de `resultados/`, entrena el mismo pipeline de `notebooks/entrega3_modelado.ipynb` (misma semilla, mismos folds por firma de inmueble) y deja en `app/data/` el modelo entrenado, el dataset con predicciones, y todos los numeros de los "Como lo sabemos" |
+| `app/streamlit_app.py` | La app: lee `app/data/` y no reentrena nada |
+| `app/requirements.txt` | Dependencias para Streamlit Community Cloud |
+
+### Como se regenera
+
+Si el pipeline suma avisos y hay un CSV mas nuevo en `resultados/`, correr:
+
+```bash
+cd app
+python build_app.py        # tarda unos 15-20 min: compara 4 modelos, hace
+                            # ablacion de 18 columnas y ajusta la grilla de
+                            # hiperparametros, todo con validacion cruzada
+```
+
+Esto sobrescribe `app/data/modelo_final.joblib`, `app/data/metrics.json`,
+`app/data/dataset_exploracion.parquet` y `app/data/rangos_columnas.json`.
+Esos cuatro archivos se versionan en el repo (pesan unos pocos MB) para que
+Streamlit Community Cloud no tenga que reentrenar en cada arranque.
+
+### Como se corre localmente
+
+```bash
+cd app
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+### Como se publica
+
+En [share.streamlit.io](https://share.streamlit.io), conectar este
+repositorio de GitHub y apuntar el "main file path" a `app/streamlit_app.py`.
+Streamlit Cloud instala `app/requirements.txt` solo. Hay que mantenerla
+publicada: si se borra o se duerme la app, conviene volver a abrirla antes
+de la exposicion.
+
+### Numeros clave de la app (salen de `app/data/metrics.json`)
+
+| Que | Numero |
+|---|---|
+| Avisos modelados | 3.364 de 3.539 (269 en USD convertidos a pesos) |
+| Comparacion de modelos (MAE, validacion cruzada) | Piso 2.667 · Lineal 1.949 · Lineal log(y) 1.822 · Random Forest 1.820 · **HistGradientBoosting 1.750** |
+| Columnas finales | 13 de 18 (salen `tiene_expensas`, `acepta_mascotas`, `tipo_anunciante`, `fecha_scraping`, `superficie_total_m2`) |
+| Mejor combinacion de hiperparametros | tasa 0,1 · 500 arboles · hojas de 15 nodos · minimo 10 filas por hoja → MAE 1.705 |
+| Test (una sola medicion) | Modelo 1.722 $/m² (11,4 % de error relativo) contra 2.778 $/m² del piso (19,1 %) → **38 % menos error** |
+| Cortes de residuo para el veredicto | -20,2 % / +25,8 % (percentiles 10 y 90 del error en validacion) |
+
 ## Estado
 
 - [x] Fase 0 - estructura del repo y DAG esqueleto
@@ -307,4 +364,6 @@ avisos nuevos por dia, asi que la union suma filas reales.
 - [x] Fase 2 - transformacion y calidad (transform_clean, quality_check)
 - [x] Fase 3 - correr el DAG completo en Airflow y dejarlo en verde
 - [x] Fase 4 - Entrega 2: scheduling, features geograficas, EDA
-- [ ] Fase 5 - ensayo cronometrado
+- [x] Fase 5 - Entrega 3: modelado (HistGradientBoosting)
+- [x] Fase 6 - Entrega 4: aplicacion Streamlit publicada
+- [ ] Ensayo cronometrado de la exposicion final (25/11)

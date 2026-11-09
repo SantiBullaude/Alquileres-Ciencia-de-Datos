@@ -1,0 +1,10 @@
+# Dependencias de la app de la Entrega 4 (Streamlit Community Cloud las
+# instala solas a partir de este archivo, que tiene que estar en la misma
+# carpeta que streamlit_app.py o declarado como "main file path").
+streamlit
+pandas
+numpy
+scikit-learn
+altair
+joblib
+pyarrow

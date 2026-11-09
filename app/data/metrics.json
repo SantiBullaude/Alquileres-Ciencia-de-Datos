@@ -1,0 +1,1029 @@
+{
+  "dataset": {
+    "csv": "resultados/20261013/brujula_inmobiliaria_alquiler_mendoza.csv",
+    "filas_totales": 3539,
+    "filas_modeladas": 3364,
+    "avisos_usd_convertidos": 269,
+    "tc_usd": 1540.0,
+    "ventana_inicio": "2026-09-07",
+    "ventana_fin": "2026-10-13"
+  },
+  "pasos_filtro": [
+    {
+      "paso": "Dataset completo",
+      "filas": 3539,
+      "descripcion": "Un aviso de alquiler publicado en Inmoclick o InmoUP para Mendoza."
+    },
+    {
+      "paso": "Con moneda",
+      "filas": 3529,
+      "descripcion": "Se descartan los avisos sin precio ni moneda publicados."
+    },
+    {
+      "paso": "Sin motivo de sospecha",
+      "filas": 3448,
+      "descripcion": "Se descartan los que el pipeline marco con superficie imposible o precio de venta cargado como alquiler."
+    },
+    {
+      "paso": "Con precio_m2 (entran al modelo)",
+      "filas": 3364,
+      "descripcion": "Se convierten a pesos los avisos en USD con el dolar MEP del 13/10/2026 ($1,540)."
+    }
+  ],
+  "columnas_descartadas_fuga": [
+    {
+      "columna": "precio",
+      "motivo": "Es el objetivo (precio_m2) multiplicado por la superficie: define la respuesta exacta."
+    },
+    {
+      "columna": "dias_publicado",
+      "motivo": "Censurada por la ventana de observacion: para un aviso nuevo siempre vale 0."
+    },
+    {
+      "columna": "veces_visto",
+      "motivo": "Censurada por la ventana de observacion: para un aviso nuevo siempre vale 1."
+    },
+    {
+      "columna": "clave, url, usr_id, prp_id, id_publicado",
+      "motivo": "Identificadores: no son atributos del inmueble."
+    }
+  ],
+  "split": {
+    "train": 2688,
+    "test": 676,
+    "firmas_compartidas_train_test": 0,
+    "pct_avisos_con_firma_compartida": 0.238
+  },
+  "piso": {
+    "mae_mean": 2667.0,
+    "mae_std": 88.0
+  },
+  "comparacion_modelos": [
+    {
+      "modelo": "Piso (mediana)",
+      "mae_mean": 2667.0,
+      "mae_std": 88.0,
+      "mejora_vs_piso": 0.0,
+      "folds": [
+        2552.7,
+        2716.1,
+        2632.3,
+        2613.0,
+        2809.6,
+        2701.4,
+        2652.2,
+        2488.8,
+        2807.7,
+        2714.9,
+        2548.3,
+        2654.0,
+        2682.0,
+        2743.8,
+        2689.4
+      ]
+    },
+    {
+      "modelo": "Lineal",
+      "mae_mean": 1949.0,
+      "mae_std": 94.0,
+      "mejora_vs_piso": 0.2691,
+      "folds": [
+        2026.4,
+        1877.0,
+        1981.2,
+        1914.1,
+        1975.8,
+        1926.5,
+        1829.1,
+        1818.4,
+        2106.6,
+        2016.6,
+        1979.6,
+        1948.6,
+        1766.0,
+        2096.7,
+        1979.8
+      ]
+    },
+    {
+      "modelo": "Lineal log(y)",
+      "mae_mean": 1822.0,
+      "mae_std": 75.0,
+      "mejora_vs_piso": 0.3169,
+      "folds": [
+        1884.6,
+        1766.2,
+        1885.7,
+        1751.1,
+        1875.8,
+        1800.6,
+        1788.7,
+        1691.6,
+        1957.3,
+        1823.4,
+        1852.4,
+        1822.0,
+        1676.8,
+        1901.1,
+        1851.7
+      ]
+    },
+    {
+      "modelo": "Random Forest",
+      "mae_mean": 1820.0,
+      "mae_std": 66.0,
+      "mejora_vs_piso": 0.3177,
+      "folds": [
+        1778.2,
+        1826.4,
+        1924.5,
+        1785.8,
+        1894.3,
+        1726.5,
+        1768.2,
+        1782.3,
+        1905.7,
+        1793.5,
+        1847.0,
+        1830.2,
+        1700.9,
+        1813.5,
+        1919.8
+      ]
+    },
+    {
+      "modelo": "HistGradientBoosting",
+      "mae_mean": 1750.0,
+      "mae_std": 67.0,
+      "mejora_vs_piso": 0.3438,
+      "folds": [
+        1722.7,
+        1746.7,
+        1858.6,
+        1594.8,
+        1811.3,
+        1746.6,
+        1758.9,
+        1713.9,
+        1841.7,
+        1724.4,
+        1709.9,
+        1782.1,
+        1655.5,
+        1773.3,
+        1812.9
+      ]
+    }
+  ],
+  "pares_contra_mejor": [
+    {
+      "contra": "Lineal",
+      "gana_por": 199.0,
+      "desvio_diferencia": 84.0,
+      "folds_gana": 15,
+      "folds_totales": 15
+    },
+    {
+      "contra": "Lineal log(y)",
+      "gana_por": 72.0,
+      "desvio_diferencia": 56.0,
+      "folds_gana": 14,
+      "folds_totales": 15
+    },
+    {
+      "contra": "Random Forest",
+      "gana_por": 70.0,
+      "desvio_diferencia": 48.0,
+      "folds_gana": 14,
+      "folds_totales": 15
+    }
+  ],
+  "ablacion": [
+    {
+      "columna": "superficie_cubierta_m2",
+      "mae_con": 1750.0,
+      "mae_sin": 1978.0,
+      "delta": 228.0,
+      "desvio_delta": 52.0,
+      "folds_ayuda": 15
+    },
+    {
+      "columna": "moneda",
+      "mae_con": 1750.0,
+      "mae_sin": 1896.0,
+      "delta": 146.0,
+      "desvio_delta": 34.0,
+      "folds_ayuda": 15
+    },
+    {
+      "columna": "cochera",
+      "mae_con": 1750.0,
+      "mae_sin": 1804.0,
+      "delta": 54.0,
+      "desvio_delta": 25.0,
+      "folds_ayuda": 15
+    },
+    {
+      "columna": "valor_expensas",
+      "mae_con": 1750.0,
+      "mae_sin": 1800.0,
+      "delta": 49.0,
+      "desvio_delta": 34.0,
+      "folds_ayuda": 14
+    },
+    {
+      "columna": "dormitorios",
+      "mae_con": 1750.0,
+      "mae_sin": 1777.0,
+      "delta": 27.0,
+      "desvio_delta": 21.0,
+      "folds_ayuda": 12
+    },
+    {
+      "columna": "estado_conservacion",
+      "mae_con": 1750.0,
+      "mae_sin": 1770.0,
+      "delta": 20.0,
+      "desvio_delta": 30.0,
+      "folds_ayuda": 11
+    },
+    {
+      "columna": "localidad",
+      "mae_con": 1750.0,
+      "mae_sin": 1767.0,
+      "delta": 16.0,
+      "desvio_delta": 15.0,
+      "folds_ayuda": 13
+    },
+    {
+      "columna": "banos",
+      "mae_con": 1750.0,
+      "mae_sin": 1762.0,
+      "delta": 12.0,
+      "desvio_delta": 18.0,
+      "folds_ayuda": 10
+    },
+    {
+      "columna": "dist_centro_km",
+      "mae_con": 1750.0,
+      "mae_sin": 1760.0,
+      "delta": 10.0,
+      "desvio_delta": 21.0,
+      "folds_ayuda": 8
+    },
+    {
+      "columna": "densidad_1km",
+      "mae_con": 1750.0,
+      "mae_sin": 1758.0,
+      "delta": 8.0,
+      "desvio_delta": 21.0,
+      "folds_ayuda": 9
+    },
+    {
+      "columna": "zona_geo",
+      "mae_con": 1750.0,
+      "mae_sin": 1757.0,
+      "delta": 7.0,
+      "desvio_delta": 18.0,
+      "folds_ayuda": 11
+    },
+    {
+      "columna": "fuente",
+      "mae_con": 1750.0,
+      "mae_sin": 1758.0,
+      "delta": 7.0,
+      "desvio_delta": 14.0,
+      "folds_ayuda": 10
+    },
+    {
+      "columna": "antiguedad",
+      "mae_con": 1750.0,
+      "mae_sin": 1756.0,
+      "delta": 6.0,
+      "desvio_delta": 26.0,
+      "folds_ayuda": 9
+    },
+    {
+      "columna": "tiene_expensas",
+      "mae_con": 1750.0,
+      "mae_sin": 1751.0,
+      "delta": 1.0,
+      "desvio_delta": 21.0,
+      "folds_ayuda": 6
+    },
+    {
+      "columna": "acepta_mascotas",
+      "mae_con": 1750.0,
+      "mae_sin": 1752.0,
+      "delta": 1.0,
+      "desvio_delta": 15.0,
+      "folds_ayuda": 9
+    },
+    {
+      "columna": "tipo_anunciante",
+      "mae_con": 1750.0,
+      "mae_sin": 1751.0,
+      "delta": 1.0,
+      "desvio_delta": 12.0,
+      "folds_ayuda": 7
+    },
+    {
+      "columna": "fecha_scraping",
+      "mae_con": 1750.0,
+      "mae_sin": 1748.0,
+      "delta": -2.0,
+      "desvio_delta": 20.0,
+      "folds_ayuda": 6
+    },
+    {
+      "columna": "superficie_total_m2",
+      "mae_con": 1750.0,
+      "mae_sin": 1745.0,
+      "delta": -5.0,
+      "desvio_delta": 19.0,
+      "folds_ayuda": 8
+    }
+  ],
+  "columnas_finales": [
+    "superficie_cubierta_m2",
+    "dormitorios",
+    "banos",
+    "antiguedad",
+    "cochera",
+    "estado_conservacion",
+    "valor_expensas",
+    "localidad",
+    "zona_geo",
+    "dist_centro_km",
+    "densidad_1km",
+    "fuente",
+    "moneda"
+  ],
+  "columnas_salen": [
+    "tiene_expensas",
+    "acepta_mascotas",
+    "tipo_anunciante",
+    "fecha_scraping",
+    "superficie_total_m2"
+  ],
+  "mae_con_todas": 1750.0,
+  "mae_con_finales": 1730.0,
+  "grid_mejor_params": {
+    "learning_rate": 0.1,
+    "loss": "absolute_error",
+    "max_iter": 500,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 10
+  },
+  "grid_mejor_mae": 1705.0,
+  "grid_tabla": [
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 1,
+      "MAE": 1704.8607,
+      "desvio": 101.6129
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 2,
+      "MAE": 1713.784,
+      "desvio": 97.0336
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 3,
+      "MAE": 1719.7705,
+      "desvio": 99.6219
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 4,
+      "MAE": 1721.511,
+      "desvio": 104.606
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 5,
+      "MAE": 1723.1603,
+      "desvio": 104.8797
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 6,
+      "MAE": 1726.5796,
+      "desvio": 101.4948
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 7,
+      "MAE": 1727.9321,
+      "desvio": 99.1283
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 8,
+      "MAE": 1729.5843,
+      "desvio": 101.1215
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 9,
+      "MAE": 1732.7113,
+      "desvio": 107.6446
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 10,
+      "MAE": 1732.798,
+      "desvio": 106.7607
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 11,
+      "MAE": 1735.1718,
+      "desvio": 107.5755
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 12,
+      "MAE": 1737.0112,
+      "desvio": 102.3105
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 13,
+      "MAE": 1755.567,
+      "desvio": 103.6158
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 14,
+      "MAE": 1757.7283,
+      "desvio": 102.2498
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 15,
+      "MAE": 1762.5929,
+      "desvio": 60.0816
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 16,
+      "MAE": 1774.602,
+      "desvio": 103.133
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 17,
+      "MAE": 1779.208,
+      "desvio": 50.0591
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 18,
+      "MAE": 1779.8046,
+      "desvio": 18.6543
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 19,
+      "MAE": 1781.7189,
+      "desvio": 44.1708
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "absolute_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 20,
+      "MAE": 1784.998,
+      "desvio": 103.9148
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 21,
+      "MAE": 1786.4729,
+      "desvio": 35.1475
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 22,
+      "MAE": 1787.7715,
+      "desvio": 46.5033
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 23,
+      "MAE": 1789.2553,
+      "desvio": 30.0511
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 24,
+      "MAE": 1789.4797,
+      "desvio": 35.6677
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 10,
+      "rank_test_score": 25,
+      "MAE": 1801.3369,
+      "desvio": 40.3487
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 26,
+      "MAE": 1804.4213,
+      "desvio": 47.8393
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 27,
+      "MAE": 1809.4854,
+      "desvio": 51.6277
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 28,
+      "MAE": 1817.3139,
+      "desvio": 30.4831
+    },
+    {
+      "learning_rate": 0.03,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 10,
+      "rank_test_score": 29,
+      "MAE": 1818.0932,
+      "desvio": 46.9381
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 200,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 30,
+      "MAE": 1829.6347,
+      "desvio": 38.8378
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "rank_test_score": 31,
+      "MAE": 1862.2492,
+      "desvio": 27.4954
+    },
+    {
+      "learning_rate": 0.1,
+      "loss": "squared_error",
+      "max_iter": 500,
+      "max_leaf_nodes": 31,
+      "min_samples_leaf": 30,
+      "rank_test_score": 32,
+      "MAE": 1895.2541,
+      "desvio": 48.7783
+    }
+  ],
+  "mae_sin_ajustar_finales": 1730.0,
+  "test": {
+    "mae_modelo": 1722.0,
+    "mae_piso": 2778.0,
+    "mejora_pct": 0.38,
+    "error_relativo_mediano_modelo": 0.1138,
+    "error_relativo_mediano_piso": 0.191,
+    "mae_cv_elegido": 1705.0
+  },
+  "por_tramo": [
+    {
+      "tramo": "1 (mas barato)",
+      "filas": 139,
+      "real_mediano": 7273.0,
+      "MAE": 1306.0,
+      "sesgo_medio": 1238.0
+    },
+    {
+      "tramo": "2",
+      "filas": 133,
+      "real_mediano": 9091.0,
+      "MAE": 1215.0,
+      "sesgo_medio": 780.0
+    },
+    {
+      "tramo": "3",
+      "filas": 140,
+      "real_mediano": 10690.0,
+      "MAE": 1003.0,
+      "sesgo_medio": 46.0
+    },
+    {
+      "tramo": "4",
+      "filas": 129,
+      "real_mediano": 12019.0,
+      "MAE": 1601.0,
+      "sesgo_medio": -732.0
+    },
+    {
+      "tramo": "5 (mas caro)",
+      "filas": 135,
+      "real_mediano": 15833.0,
+      "MAE": 3511.0,
+      "sesgo_medio": -3006.0
+    }
+  ],
+  "por_localidad": [
+    {
+      "localidad": "Interior",
+      "filas": 2,
+      "MAE": 2935.0,
+      "sesgo_medio": -1667.0
+    },
+    {
+      "localidad": "Maipu",
+      "filas": 34,
+      "MAE": 2395.0,
+      "sesgo_medio": -1169.0
+    },
+    {
+      "localidad": "Lujan de Cuyo",
+      "filas": 53,
+      "MAE": 2066.0,
+      "sesgo_medio": -857.0
+    },
+    {
+      "localidad": "Capital",
+      "filas": 265,
+      "MAE": 1889.0,
+      "sesgo_medio": -482.0
+    },
+    {
+      "localidad": "Godoy Cruz",
+      "filas": 133,
+      "MAE": 1818.0,
+      "sesgo_medio": -339.0
+    },
+    {
+      "localidad": "Las Heras",
+      "filas": 54,
+      "MAE": 1623.0,
+      "sesgo_medio": 177.0
+    },
+    {
+      "localidad": "Guaymallen",
+      "filas": 135,
+      "MAE": 1017.0,
+      "sesgo_medio": 249.0
+    }
+  ],
+  "por_moneda": [
+    {
+      "moneda": "ARS",
+      "filas": 620,
+      "real_mediano": 10211.0,
+      "MAE": 1556.0,
+      "sesgo_medio": -388.0
+    },
+    {
+      "moneda": "USD",
+      "filas": 56,
+      "real_mediano": 15400.0,
+      "MAE": 3563.0,
+      "sesgo_medio": 401.0
+    }
+  ],
+  "importancia_permutacion": [
+    {
+      "columna": "superficie_cubierta_m2",
+      "aumento_mae": 1791.0,
+      "desvio": 49.0
+    },
+    {
+      "columna": "moneda",
+      "aumento_mae": 366.0,
+      "desvio": 49.0
+    },
+    {
+      "columna": "valor_expensas",
+      "aumento_mae": 166.0,
+      "desvio": 29.0
+    },
+    {
+      "columna": "densidad_1km",
+      "aumento_mae": 164.0,
+      "desvio": 19.0
+    },
+    {
+      "columna": "dist_centro_km",
+      "aumento_mae": 129.0,
+      "desvio": 18.0
+    },
+    {
+      "columna": "banos",
+      "aumento_mae": 122.0,
+      "desvio": 31.0
+    },
+    {
+      "columna": "cochera",
+      "aumento_mae": 120.0,
+      "desvio": 15.0
+    },
+    {
+      "columna": "estado_conservacion",
+      "aumento_mae": 99.0,
+      "desvio": 17.0
+    },
+    {
+      "columna": "dormitorios",
+      "aumento_mae": 70.0,
+      "desvio": 11.0
+    },
+    {
+      "columna": "antiguedad",
+      "aumento_mae": 68.0,
+      "desvio": 11.0
+    },
+    {
+      "columna": "localidad",
+      "aumento_mae": 67.0,
+      "desvio": 9.0
+    },
+    {
+      "columna": "zona_geo",
+      "aumento_mae": 20.0,
+      "desvio": 5.0
+    },
+    {
+      "columna": "fuente",
+      "aumento_mae": 1.0,
+      "desvio": 3.0
+    }
+  ],
+  "fuga_superficie": {
+    "pendiente_log_precio_vs_log_superficie": 0.71,
+    "mae_sin_superficie": 2152.0,
+    "desvio_sin_superficie": 102.0,
+    "mae_piso": 2667.0,
+    "mae_modelo_final_cv": 1705.0,
+    "curva": [
+      {
+        "superficie": 25,
+        "precio_m2_predicho": 16482.29968516215
+      },
+      {
+        "superficie": 35,
+        "precio_m2_predicho": 13766.557912114135
+      },
+      {
+        "superficie": 45,
+        "precio_m2_predicho": 12167.70953693639
+      },
+      {
+        "superficie": 55,
+        "precio_m2_predicho": 10879.399191041957
+      },
+      {
+        "superficie": 70,
+        "precio_m2_predicho": 9258.902704689584
+      },
+      {
+        "superficie": 90,
+        "precio_m2_predicho": 8274.467702409878
+      },
+      {
+        "superficie": 120,
+        "precio_m2_predicho": 7187.818644859986
+      },
+      {
+        "superficie": 160,
+        "precio_m2_predicho": 5439.710486298618
+      }
+    ]
+  },
+  "cortes_residuo": {
+    "bajo": -0.202,
+    "alto": 0.2576
+  },
+  "etiquetas_test": {
+    "En linea": 536,
+    "Sobrevalorado": 77,
+    "Oportunidad": 63
+  },
+  "hallazgos_eda": {
+    "h1_monedas": {
+      "n_ars": 3095,
+      "n_usd": 269,
+      "mediana_ars": 10000.0,
+      "mediana_usd": 10.0,
+      "separacion_sin_convertir": 4.26
+    },
+    "h2_superficie_sostenida": {
+      "spearman_lineal": 0.672,
+      "pearson_lineal": 0.585,
+      "brecha_lineal": 0.087,
+      "spearman_log": 0.672,
+      "pearson_log": 0.677,
+      "brecha_log": -0.005,
+      "n": 3095
+    },
+    "h3_distancia_refutada": {
+      "spearman": -0.075,
+      "n": 2950
+    }
+  },
+  "evolucion_dataset": [
+    {
+      "fecha_scraping": "2026-09-07",
+      "avisos_nuevos": 5,
+      "avisos_acumulados": 5
+    },
+    {
+      "fecha_scraping": "2026-09-08",
+      "avisos_nuevos": 266,
+      "avisos_acumulados": 271
+    },
+    {
+      "fecha_scraping": "2026-09-09",
+      "avisos_nuevos": 212,
+      "avisos_acumulados": 483
+    },
+    {
+      "fecha_scraping": "2026-09-22",
+      "avisos_nuevos": 65,
+      "avisos_acumulados": 548
+    },
+    {
+      "fecha_scraping": "2026-09-23",
+      "avisos_nuevos": 73,
+      "avisos_acumulados": 621
+    },
+    {
+      "fecha_scraping": "2026-09-25",
+      "avisos_nuevos": 75,
+      "avisos_acumulados": 696
+    },
+    {
+      "fecha_scraping": "2026-09-26",
+      "avisos_nuevos": 14,
+      "avisos_acumulados": 710
+    },
+    {
+      "fecha_scraping": "2026-09-28",
+      "avisos_nuevos": 121,
+      "avisos_acumulados": 831
+    },
+    {
+      "fecha_scraping": "2026-09-29",
+      "avisos_nuevos": 27,
+      "avisos_acumulados": 858
+    },
+    {
+      "fecha_scraping": "2026-09-30",
+      "avisos_nuevos": 107,
+      "avisos_acumulados": 965
+    },
+    {
+      "fecha_scraping": "2026-10-01",
+      "avisos_nuevos": 14,
+      "avisos_acumulados": 979
+    },
+    {
+      "fecha_scraping": "2026-10-02",
+      "avisos_nuevos": 148,
+      "avisos_acumulados": 1127
+    },
+    {
+      "fecha_scraping": "2026-10-05",
+      "avisos_nuevos": 109,
+      "avisos_acumulados": 1236
+    },
+    {
+      "fecha_scraping": "2026-10-06",
+      "avisos_nuevos": 31,
+      "avisos_acumulados": 1267
+    },
+    {
+      "fecha_scraping": "2026-10-07",
+      "avisos_nuevos": 236,
+      "avisos_acumulados": 1503
+    },
+    {
+      "fecha_scraping": "2026-10-13",
+      "avisos_nuevos": 2036,
+      "avisos_acumulados": 3539
+    }
+  ],
+  "semilla": 42
+}
