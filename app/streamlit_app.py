@@ -118,13 +118,16 @@ def portada():
         st.caption("Departamentos en alquiler de Inmoclick e InmoUP, Mendoza, "
                    f"entre el {metrics['dataset']['ventana_inicio']} y el {metrics['dataset']['ventana_fin']}.")
     with c2:
-        st.metric("Menos error que no mirar nada", f"{test['mejora_pct']:.0%}")
-        st.caption(f"MAE del modelo: {test['mae_modelo']:,.0f} $/m² · del piso (la mediana): "
-                   f"{test['mae_piso']:,.0f} $/m² (medido en el 20% de test, una sola vez).".replace(",", "."))
+        st.metric("Menos error que el mejor piso", f"{test['mejora_vs_mejor_piso_pct']:.0%}",
+                  delta=f"{test['mejora_pct']:.0%} vs mediana global", delta_color="normal")
+        st.caption(f"MAE en test: {test['mae_modelo']:,.0f} $/m² del modelo · "
+                   f"{test['mae_mejor_piso']:,.0f} $/m² del mejor piso (mediana superficie × moneda) · "
+                   f"{test['mae_piso']:,.0f} $/m² de la mediana global.".replace(",", "."))
     with c3:
-        st.metric("Error relativo típico", f"{test['error_relativo_mediano_modelo']:.0%}")
-        st.caption(f"Contra {test['error_relativo_mediano_piso']:.0%} del piso. "
-                   "Por eso la app no marca sobrevalorado a un aviso que pide solo un 5% más.")
+        st.metric("Error relativo típico", f"{test['error_relativo_mediano_modelo']:.1%}".replace(".", ","))
+        st.caption(f"Contra {test['error_relativo_mediano_mejor_piso']:.1%} del mejor piso y "
+                   f"{test['error_relativo_mediano_piso']:.1%} de la mediana global. "
+                   "Por eso la app no marca sobrevalorado a un aviso que pide solo un 5% más.".replace(".", ","))
 
     st.info(
         "La pregunta del proyecto. El modelo es supervisado (regresión sobre "
@@ -257,13 +260,33 @@ aplasta la mayoría de los puntos contra el origen.
 def el_modelo():
     st.header("El modelo")
     test = metrics["test"]
-    st.subheader(f"Con los datos del aviso, el modelo le gana al piso por un {test['mejora_pct']:.0%}, "
-                 "y lo que más usa es la superficie")
+    st.subheader(f"El modelo erra {test['mejora_vs_mejor_piso_pct']:.0%} menos que la mejor regla de medianas "
+                 f"que conocemos, y {test['mejora_pct']:.0%} menos que la mediana global")
     st.markdown(
-        "Se compararon cuatro familias con la misma validación y las mismas "
-        "columnas; gana un **HistGradientBoosting** entrenado para minimizar "
-        "el error absoluto."
+        "Un piso que solo predice la mediana global no sabe ni cuántos m² tiene "
+        "el departamento. Por eso armamos una **escalera de pisos** cada vez más "
+        "exigentes (medianas por tramo de superficie y por superficie × moneda) "
+        "y comparamos contra cuatro familias de modelos con la misma validación "
+        "por firma de inmueble; gana un **HistGradientBoosting** entrenado para "
+        "minimizar el error absoluto."
     )
+
+    esc = pd.DataFrame(metrics["escalera_pisos"])
+    orden_esc = esc["escalon"].tolist()
+    chart_esc = alt.Chart(esc).mark_bar(size=26).encode(
+        x=alt.X("test_mae:Q", title="MAE en test ($/m²) — menos es mejor"),
+        y=alt.Y("escalon:N", sort=orden_esc, title=None),
+        color=alt.condition(alt.datum.columnas == len(metrics["columnas_finales"]),
+                             alt.value(COLOR_ELEGIDO), alt.value(COLOR_RESTO)),
+        tooltip=[
+            alt.Tooltip("escalon:N", title="Escalón"),
+            alt.Tooltip("regla:N", title="Regla"),
+            alt.Tooltip("cv_mae:Q", title="MAE validación (15 folds)", format=",.0f"),
+            alt.Tooltip("test_mae:Q", title="MAE test", format=",.0f"),
+            alt.Tooltip("test_err_rel:Q", title="Error relativo mediano (test)", format=".1%"),
+        ],
+    ).properties(height=210, title="Escalera de pisos vs modelo final (test, medido una sola vez)")
+    st.altair_chart(chart_esc, width="stretch")
 
     comp = metrics["comparacion_modelos"]
     filas = []
@@ -272,14 +295,14 @@ def el_modelo():
             filas.append({"modelo": m["modelo"], "mae": v})
     df_folds = pd.DataFrame(filas)
     orden = [m["modelo"] for m in sorted(comp, key=lambda d: d["mae_mean"], reverse=True)]
-    chart = alt.Chart(df_folds).mark_boxplot(size=24).encode(
+    chart = alt.Chart(df_folds).mark_boxplot(size=22).encode(
         x=alt.X("mae:Q", title="MAE por fold ($/m²) — menos es mejor"),
         y=alt.Y("modelo:N", sort=orden, title=None),
         color=alt.condition(alt.datum.modelo == "HistGradientBoosting",
                              alt.value(COLOR_ELEGIDO), alt.value(COLOR_RESTO)),
-    ).properties(height=260, title="15 folds agrupados por firma de inmueble, mismos folds para los 5 modelos")
+    ).properties(height=300, title="15 folds agrupados por firma de inmueble, mismos folds para todos")
     st.altair_chart(chart, width="stretch")
-    st.caption("Azul: el modelo elegido. Gris: las demás familias probadas, incluido el piso.")
+    st.caption("Azul: el modelo elegido. Gris: la escalera de pisos (P0, P1, P3) y las demás familias probadas.")
 
     with st.expander("Cómo lo sabemos"):
         st.markdown(f"""
@@ -287,9 +310,13 @@ def el_modelo():
 ("le erramos por X pesos por m² en promedio") y no se deja arrastrar por
 avisos mal cargados, a diferencia de RMSE.
 
-**El piso.** `DummyRegressor` con la mediana del entrenamiento: con MAE, la
-constante que menos erra es la mediana, no el promedio. MAE =
-{metrics['piso']['mae_mean']:,.0f} ± {metrics['piso']['mae_std']:,.0f} $/m².
+**La escalera de pisos.** Con MAE, la constante óptima dentro de un grupo es su
+mediana. Probamos pisos con 0, 1 y 2 columnas (los cuantiles de superficie se
+calculan **solo con el fold de entrenamiento**, y si un grupo tiene menos de 20
+avisos cae al nivel anterior):
+- **P0 (mediana global, 0 col):** {metrics['piso']['mae_mean']:,.0f} ± {metrics['piso']['mae_std']:,.0f} $/m² en CV ({test['mae_piso']:,.0f} en test).
+- **P1 (mediana por decil de superficie, 1 col):** {metrics['piso_superficie']['mae_mean']:,.0f} ± {metrics['piso_superficie']['mae_std']:,.0f} $/m² en CV ({test['mae_piso_superficie']:,.0f} en test).
+- **P3 (mediana por superficie × moneda, 2 col — mejor piso):** {metrics['mejor_piso']['mae_mean']:,.0f} ± {metrics['mejor_piso']['mae_std']:,.0f} $/m² en CV ({test['mae_mejor_piso']:,.0f} en test).
 
 **Cómo se armó la validación.** El mismo departamento puede estar publicado
 en los dos portales; si una copia cae en entrenamiento y la otra en
@@ -301,8 +328,9 @@ test: {metrics['split']['firmas_compartidas_train_test']}.
 
 **La tabla de comparación**, con media y desvío de los 15 folds:
 """.replace(",", "."))
-        tabla_comp = pd.DataFrame(comp)[["modelo", "mae_mean", "mae_std", "mejora_vs_piso"]]
-        tabla_comp["mejora_vs_piso"] = tabla_comp["mejora_vs_piso"].map("{:.1%}".format)
+        tabla_comp = pd.DataFrame(comp)[["modelo", "mae_mean", "mae_std", "mejora_vs_piso", "mejora_vs_mejor_piso"]]
+        tabla_comp["mejora_vs_piso"] = tabla_comp["mejora_vs_piso"].map("{:+.1%}".format)
+        tabla_comp["mejora_vs_mejor_piso"] = tabla_comp["mejora_vs_mejor_piso"].map("{:+.1%}".format)
         tabla(tabla_comp.set_index("modelo"))
 
         st.markdown("**Fold contra fold, contra el elegido:**")
@@ -323,11 +351,14 @@ finales, {metrics['mae_con_finales']:,.0f}.
 ayuda poco, menos que el desvío entre folds).
 
 **El resultado en test**, medido una sola vez: MAE
-**{test['mae_modelo']:,.0f} $/m²** contra **{test['mae_piso']:,.0f}** del
-piso ({test['mejora_pct']:.0%} menos error). Error relativo mediano:
+**{test['mae_modelo']:,.0f} $/m²** contra **{test['mae_mejor_piso']:,.0f}**
+del mejor piso P3 ({test['mejora_vs_mejor_piso_pct']:.0%} menos error) y
+**{test['mae_piso']:,.0f}** de la mediana global ({test['mejora_pct']:.0%}
+menos error). Error relativo mediano:
 {test['error_relativo_mediano_modelo']:.1%} contra
-{test['error_relativo_mediano_piso']:.1%} del piso. En validación cruzada
-el elegido daba {test['mae_cv_elegido']:,.0f}: muy cerca del test, la
+{test['error_relativo_mediano_mejor_piso']:.1%} del mejor piso y
+{test['error_relativo_mediano_piso']:.1%} de la mediana global. En validación
+cruzada el elegido daba {test['mae_cv_elegido']:,.0f}: muy cerca del test, la
 validación no estaba mintiendo.
 
 **Dónde se equivoca**, por tramo de precio real:
@@ -348,12 +379,39 @@ validación no estaba mintiendo.
 
         fuga = metrics["fuga_superficie"]
         st.markdown(f"""
-**La superficie no es fuga.** Existe al predecir (la publica el aviso), no
-contiene la respuesta (pendiente log-log de {fuga['pendiente_log_precio_vs_log_superficie']}:
-el precio sube menos que proporcional a la superficie, no la reconstruye) y
-sin ella el modelo sigue ganándole al piso ({fuga['mae_sin_superficie']:,.0f}
-contra {fuga['mae_piso']:,.0f}).
+**La superficie no es fuga — y el modelo no es solo superficie.**
+1. *Existe al predecir:* la publica el aviso.
+2. *No contiene la respuesta:* la pendiente log-log entre precio y superficie es
+   **{fuga['pendiente_log_precio_vs_log_superficie']}** (< 1): cuando los m² se
+   duplican, el alquiler sube ~64%, por eso el m² de los grandes es más barato.
+3. *Sin superficie sigue ganando:* al quitarla el MAE pasa a
+   **{fuga['mae_sin_superficie']:,.0f}** ± {fuga['desvio_sin_superficie']:,.0f} $/m²,
+   muy por debajo de la mediana global ({fuga['mae_piso']:,.0f}).
+4. *Con una sola columna no alcanza:* un HistGradientBoosting entrenado **solo
+   con `superficie_cubierta_m2`** da **{fuga['mae_solo_superficie']:,.0f}** ±
+   {fuga['desvio_solo_superficie']:,.0f} $/m² en CV ({fuga['mae_solo_superficie_test']:,.0f}
+   en test), prácticamente empatado con el piso P1 de mediana por superficie
+   ({metrics['piso_superficie']['mae_mean']:,.0f}). Las otras 12 columnas bajan
+   el error de {fuga['mae_solo_superficie']:,.0f} a {fuga['mae_modelo_final_cv']:,.0f} $/m²
+   (ganan en 15 de 15 folds).
+
+**Por qué mantenemos un único par de cortes ({metrics['cortes_residuo']['bajo']:+.1%} / {metrics['cortes_residuo']['alto']:+.1%}) para el veredicto.**
+Al cruzar el veredicto con el quintil del **precio real**, el quintil más caro
+concentra más avisos "Sobrevalorados" y el más barato más "Oportunidades",
+porque agrupar por el precio real junta en los extremos a los avisos que
+efectivamente piden de más o de menos. En cambio, al cruzar por el quintil del
+**precio predicho** (lo único que conoce la app antes de saber cuánto pide el
+aviso), el reparto es equilibrado en todos los tramos (~73–85% en línea):
 """.replace(",", "."))
+        c_r, c_p = st.columns(2)
+        with c_r:
+            st.caption("Por quintil de precio real (incluye el residuo)")
+            df_cr = pd.DataFrame(metrics["cruce_veredicto_tramo_real"]).set_index("tramo")
+            st.table(df_cr.map("{:.0%}".format))
+        with c_p:
+            st.caption("Por quintil de precio predicho (lo que ve la app)")
+            df_cp = pd.DataFrame(metrics["cruce_veredicto_tramo_predicho"]).set_index("tramo_predicho")
+            st.table(df_cp.map("{:.0%}".format))
 
     st.markdown('<p class="bloque-cierra">Cierra la Entrega 3.</p>', unsafe_allow_html=True)
 

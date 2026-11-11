@@ -41,7 +41,7 @@ from sklearn.inspection import permutation_importance
 from pipeline_comun import (
     SEMILLA, LOCALIDADES_GRANDES, INICIO_VENTANA, COLUMNAS,
     LOGARITMICAS, NUMERICAS, CATEGORICAS,
-    derivar_columnas, armar_pipeline, cv_agrupada, medir,
+    derivar_columnas, armar_pipeline, cv_agrupada, medir, MedianaPorGrupo,
 )
 
 np.random.seed(SEMILLA)
@@ -122,13 +122,23 @@ def main():
     print(f"[2/9] train {len(X_train)} filas | test {len(X_test)} filas "
           f"| firmas compartidas: {len(set(g_train) & set(g_test))}")
 
-    # --- 1.4 piso -------------------------------------------------------------
-    mae_piso = medir(DummyRegressor(strategy="median"), X_train, y_train, g_train)
-    print(f"[3/9] piso (mediana): MAE = {mae_piso.mean():,.0f} +/- {mae_piso.std():,.0f}")
+    # --- 1.4 piso y escalera de pisos -----------------------------------------
+    piso_p0 = DummyRegressor(strategy="median")
+    piso_p1 = MedianaPorGrupo(grupos=(("tramo_sup",),), n_tramos=10, min_n=20)
+    piso_p3 = MedianaPorGrupo(grupos=(("tramo_sup", "moneda"), ("tramo_sup",)), n_tramos=10, min_n=20)
+
+    mae_piso = medir(piso_p0, X_train, y_train, g_train)
+    mae_p1 = medir(piso_p1, X_train, y_train, g_train)
+    mae_p3 = medir(piso_p3, X_train, y_train, g_train)
+    print(f"[3/9] pisos: P0 (global) {mae_piso.mean():,.0f} +/- {mae_piso.std():,.0f} | "
+          f"P1 (superficie) {mae_p1.mean():,.0f} +/- {mae_p1.std():,.0f} | "
+          f"P3 (superficie x moneda) {mae_p3.mean():,.0f} +/- {mae_p3.std():,.0f}")
 
     # --- 2.1 comparacion de 4 familias -----------------------------------------
     MODELOS = {
-        "Piso (mediana)": DummyRegressor(strategy="median"),
+        "P0 (mediana global)": piso_p0,
+        "P1 (mediana por superficie)": piso_p1,
+        "P3 (mediana sup x moneda)": piso_p3,
         "Lineal": armar_pipeline(LinearRegression()),
         "Lineal log(y)": TransformedTargetRegressor(armar_pipeline(LinearRegression()),
                                                       func=np.log, inverse_func=np.exp),
@@ -137,15 +147,21 @@ def main():
         "HistGradientBoosting": armar_pipeline(HistGradientBoostingRegressor(loss="absolute_error",
                                                                               random_state=SEMILLA), escalar=False),
     }
-    maes = {n: (mae_piso if n.startswith("Piso") else medir(m, X_train, y_train, g_train))
+    maes_previos = {
+        "P0 (mediana global)": mae_piso,
+        "P1 (mediana por superficie)": mae_p1,
+        "P3 (mediana sup x moneda)": mae_p3,
+    }
+    maes = {n: (maes_previos[n] if n in maes_previos else medir(m, X_train, y_train, g_train))
             for n, m in MODELOS.items()}
     print("[4/9] comparacion de modelos:")
     for n, v in maes.items():
-        print(f"      {n:22s} MAE = {v.mean():,.0f} +/- {v.std():,.0f}")
+        print(f"      {n:28s} MAE = {v.mean():,.0f} +/- {v.std():,.0f}")
 
     mejor = "HistGradientBoosting"
     pares = []
-    for otro in ["Lineal", "Lineal log(y)", "Random Forest"]:
+    for otro in ["P0 (mediana global)", "P1 (mediana por superficie)", "P3 (mediana sup x moneda)",
+                 "Lineal", "Lineal log(y)", "Random Forest"]:
         dif = maes[otro] - maes[mejor]
         pares.append({"contra": otro, "gana_por": round(float(dif.mean()), 0),
                       "desvio_diferencia": round(float(dif.std()), 0),
@@ -154,6 +170,7 @@ def main():
     comparacion_modelos = [
         {"modelo": n, "mae_mean": round(float(v.mean()), 0), "mae_std": round(float(v.std()), 0),
          "mejora_vs_piso": round(1 - v.mean() / mae_piso.mean(), 4),
+         "mejora_vs_mejor_piso": round(1 - v.mean() / mae_p3.mean(), 4),
          "folds": [round(float(x), 1) for x in v]}
         for n, v in maes.items()
     ]
@@ -209,16 +226,42 @@ def main():
     final = grilla.best_estimator_
     final.fit(X_train, y_train)
     piso_final = DummyRegressor(strategy="median").fit(X_train, y_train)
+    piso_p1_final = MedianaPorGrupo(grupos=(("tramo_sup",),), n_tramos=10, min_n=20).fit(X_train, y_train)
+    piso_p3_final = MedianaPorGrupo(grupos=(("tramo_sup", "moneda"), ("tramo_sup",)), n_tramos=10, min_n=20).fit(X_train, y_train)
+
     pred_test = final.predict(X_test)
     pred_piso_test = piso_final.predict(X_test)
+    pred_p1_test = piso_p1_final.predict(X_test)
+    pred_p3_test = piso_p3_final.predict(X_test)
 
     mae_test = mean_absolute_error(y_test, pred_test)
     mae_piso_test = mean_absolute_error(y_test, pred_piso_test)
+    mae_p1_test = mean_absolute_error(y_test, pred_p1_test)
+    mae_p3_test = mean_absolute_error(y_test, pred_p3_test)
+
     err_rel = float((np.abs(y_test - pred_test) / y_test).median())
     err_rel_piso = float((np.abs(y_test - pred_piso_test) / y_test).median())
+    err_rel_p1 = float((np.abs(y_test - pred_p1_test) / y_test).median())
+    err_rel_p3 = float((np.abs(y_test - pred_p3_test) / y_test).median())
     print(f"[7/9] TEST modelo MAE={mae_test:,.0f} ({err_rel:.1%}) | "
-          f"piso MAE={mae_piso_test:,.0f} ({err_rel_piso:.1%}) | "
-          f"mejora {1 - mae_test / mae_piso_test:.1%}")
+          f"P0 MAE={mae_piso_test:,.0f} (mejora {1 - mae_test / mae_piso_test:.1%}) | "
+          f"P3 MAE={mae_p3_test:,.0f} (mejora {1 - mae_test / mae_p3_test:.1%})")
+
+    escalera_pisos = [
+        {"escalon": "P0: Mediana global (0 col)", "regla": "Mediana unica de todo el entrenamiento",
+         "columnas": 0, "cv_mae": round(float(mae_piso.mean()), 0), "cv_std": round(float(mae_piso.std()), 0),
+         "test_mae": round(float(mae_piso_test), 0), "test_err_rel": round(err_rel_piso, 4)},
+        {"escalon": "P1: Mediana por superficie (1 col)", "regla": "Mediana por decil de superficie cubierta",
+         "columnas": 1, "cv_mae": round(float(mae_p1.mean()), 0), "cv_std": round(float(mae_p1.std()), 0),
+         "test_mae": round(float(mae_p1_test), 0), "test_err_rel": round(err_rel_p1, 4)},
+        {"escalon": "P3: Mediana superficie x moneda (2 col)", "regla": "Mediana por decil de superficie y moneda (respaldo jerarquico)",
+         "columnas": 2, "cv_mae": round(float(mae_p3.mean()), 0), "cv_std": round(float(mae_p3.std()), 0),
+         "test_mae": round(float(mae_p3_test), 0), "test_err_rel": round(err_rel_p3, 4)},
+        {"escalon": "Modelo: HistGradientBoosting (13 col)", "regla": "Boosting sobre las 13 columnas seleccionadas",
+         "columnas": len(FINALES), "cv_mae": round(float(-grilla.best_score_), 0),
+         "cv_std": round(float(tabla_grilla.iloc[0]["desvio"]), 0),
+         "test_mae": round(float(mae_test), 0), "test_err_rel": round(err_rel, 4)},
+    ]
 
     resultado = pd.DataFrame({"real": y_test.values, "predicho": pred_test}, index=X_test.index)
     resultado["error"] = resultado["predicho"] - resultado["real"]
@@ -257,6 +300,9 @@ def main():
                                   np.log(precio_train), 1)[0])
     sin_sup = [c for c in FINALES if c not in ("superficie_cubierta_m2", "superficie_total_m2")]
     mae_sin_sup = medir(modelo_hgb(sin_sup), X_train, y_train, g_train)
+    mae_solo_sup = medir(modelo_hgb(["superficie_cubierta_m2"]), X_train, y_train, g_train)
+    hgb_solo_sup = modelo_hgb(["superficie_cubierta_m2"]).fit(X_train, y_train)
+    mae_solo_sup_test = mean_absolute_error(y_test, hgb_solo_sup.predict(X_test))
 
     grid_sup = [25, 35, 45, 55, 70, 90, 120, 160]
     curva_superficie = []
@@ -269,7 +315,11 @@ def main():
         "pendiente_log_precio_vs_log_superficie": round(pendiente, 2),
         "mae_sin_superficie": round(float(mae_sin_sup.mean()), 0),
         "desvio_sin_superficie": round(float(mae_sin_sup.std()), 0),
+        "mae_solo_superficie": round(float(mae_solo_sup.mean()), 0),
+        "desvio_solo_superficie": round(float(mae_solo_sup.std()), 0),
+        "mae_solo_superficie_test": round(float(mae_solo_sup_test), 0),
         "mae_piso": round(float(mae_piso.mean()), 0),
+        "mae_mejor_piso": round(float(mae_p3.mean()), 0),
         "mae_modelo_final_cv": round(float(-grilla.best_score_), 0),
         "curva": curva_superficie,
     }
@@ -285,6 +335,15 @@ def main():
 
     resultado["etiqueta"] = etiquetar(resultado["real"], resultado["predicho"])
     etiquetas_test = resultado["etiqueta"].value_counts().to_dict()
+
+    resultado["tramo_pred"] = pd.qcut(resultado["predicho"], 5,
+                                       labels=["1 (mas barato)", "2", "3", "4", "5 (mas caro)"])
+    cruce_real = (pd.crosstab(resultado["tramo"], resultado["etiqueta"], normalize="index")
+                  .reindex(columns=["Oportunidad", "En linea", "Sobrevalorado"], fill_value=0.0)
+                  .round(3).reset_index().to_dict(orient="records"))
+    cruce_pred = (pd.crosstab(resultado["tramo_pred"], resultado["etiqueta"], normalize="index")
+                  .reindex(columns=["Oportunidad", "En linea", "Sobrevalorado"], fill_value=0.0)
+                  .round(3).reset_index().rename(columns={"tramo_pred": "tramo_predicho"}).to_dict(orient="records"))
     print(f"[9/9] cortes {corte_bajo:+.1%} / {corte_alto:+.1%} -> {etiquetas_test}")
 
     # ---------------------------------------------------------------------------
@@ -392,6 +451,10 @@ def main():
                    "firmas_compartidas_train_test": len(set(g_train) & set(g_test)),
                    "pct_avisos_con_firma_compartida": round(float((grupos.map(grupos.value_counts()) > 1).mean()), 3)},
         "piso": {"mae_mean": round(float(mae_piso.mean()), 0), "mae_std": round(float(mae_piso.std()), 0)},
+        "piso_superficie": {"mae_mean": round(float(mae_p1.mean()), 0), "mae_std": round(float(mae_p1.std()), 0)},
+        "mejor_piso": {"nombre": "P3 (mediana superficie x moneda)",
+                       "mae_mean": round(float(mae_p3.mean()), 0), "mae_std": round(float(mae_p3.std()), 0)},
+        "escalera_pisos": escalera_pisos,
         "comparacion_modelos": comparacion_modelos,
         "pares_contra_mejor": pares,
         "ablacion": ablacion,
@@ -405,9 +468,13 @@ def main():
         "mae_sin_ajustar_finales": round(float(mae_finales.mean()), 0),
         "test": {
             "mae_modelo": round(float(mae_test), 0), "mae_piso": round(float(mae_piso_test), 0),
+            "mae_piso_superficie": round(float(mae_p1_test), 0),
+            "mae_mejor_piso": round(float(mae_p3_test), 0),
             "mejora_pct": round(1 - mae_test / mae_piso_test, 4),
+            "mejora_vs_mejor_piso_pct": round(1 - mae_test / mae_p3_test, 4),
             "error_relativo_mediano_modelo": round(err_rel, 4),
             "error_relativo_mediano_piso": round(err_rel_piso, 4),
+            "error_relativo_mediano_mejor_piso": round(err_rel_p3, 4),
             "mae_cv_elegido": round(float(-grilla.best_score_), 0),
         },
         "por_tramo": por_tramo,
@@ -417,6 +484,8 @@ def main():
         "fuga_superficie": fuga_superficie,
         "cortes_residuo": {"bajo": round(corte_bajo, 4), "alto": round(corte_alto, 4)},
         "etiquetas_test": {k: int(v) for k, v in etiquetas_test.items()},
+        "cruce_veredicto_tramo_real": cruce_real,
+        "cruce_veredicto_tramo_predicho": cruce_pred,
         "hallazgos_eda": hallazgos_eda,
         "evolucion_dataset": evolucion_final.to_dict(orient="records"),
         "semilla": SEMILLA,

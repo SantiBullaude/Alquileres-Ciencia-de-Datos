@@ -351,11 +351,20 @@ de la exposicion.
 | Que | Numero |
 |---|---|
 | Avisos modelados | 3.364 de 3.539 (269 en USD convertidos a pesos) |
-| Comparacion de modelos (MAE, validacion cruzada) | Piso 2.667 · Lineal 1.949 · Lineal log(y) 1.822 · Random Forest 1.820 · **HistGradientBoosting 1.750** |
+| Escalera de pisos (MAE validacion / test) | P0 mediana global 2.667 / 2.778 · P1 mediana por superficie 2.398 / 2.420 · **P3 mediana superficie × moneda 2.285 / 2.258** |
+| Comparacion de modelos (MAE, validacion cruzada) | P0 2.667 · P1 2.398 · P3 2.285 · Lineal 1.949 · Lineal log(y) 1.822 · Random Forest 1.820 · **HistGradientBoosting 1.750** |
 | Columnas finales | 13 de 18 (salen `tiene_expensas`, `acepta_mascotas`, `tipo_anunciante`, `fecha_scraping`, `superficie_total_m2`) |
-| Mejor combinacion de hiperparametros | tasa 0,1 · 500 arboles · hojas de 15 nodos · minimo 10 filas por hoja → MAE 1.705 |
-| Test (una sola medicion) | Modelo 1.722 $/m² (11,4 % de error relativo) contra 2.778 $/m² del piso (19,1 %) → **38 % menos error** |
-| Cortes de residuo para el veredicto | -20,2 % / +25,8 % (percentiles 10 y 90 del error en validacion) |
+| Mejor combinacion de hiperparametros | tasa 0,1 · 500 arboles · hojas de 15 nodos · minimo 10 filas por hoja → MAE 1.705 (vs 1.730 sin ajustar) |
+| Test (una sola medicion) | Modelo **1.722 $/m²** (11,4 % error relativo) contra **2.258 $/m²** del mejor piso P3 (14,4 %) → **24 % menos error** (y **38 % menos** que la mediana global P0 de 2.778 $/m²) |
+| Chequeo de una sola columna (superficie) | HGB solo con `superficie_cubierta_m2`: 2.390 en CV (2.406 en test) vs 1.705 con las 13 columnas; sin superficie: 2.186 |
+| Cortes de residuo para el veredicto | -20,2 % / +25,8 % (percentiles 10 y 90 del error en validacion); reparto equilibrado por tramo de precio predicho (~73–85 % en linea) |
+
+### Correcciones incorporadas (devolucion Entrega 3 → Entrega 4)
+
+1. **Escalera de pisos mas exigentes (`MedianaPorGrupo` en `app/pipeline_comun.py`):** en lugar de comparar solo contra la mediana global (`P0`: 2.667 en CV / 2.778 en test), se agrego la mediana por decil de superficie cubierta (`P1`: 2.398 / 2.420) y la mediana por superficie × moneda con respaldo jerarquico (`P3`: 2.285 / 2.258), calculando los cuantiles solo sobre cada fold de entrenamiento. El modelo final le gana al mejor piso `P3` en **15 de 15 folds** por 575 $/m² (desvio 80) y reduce el MAE de test un **24 %** (y un **38 %** frente a `P0`).
+2. **Chequeo de una sola columna en la seccion de fuga de superficie:** se midio un `HistGradientBoosting` entrenado unicamente con `superficie_cubierta_m2` (MAE 2.390 en CV / 2.406 en test, a la par de `P1`), demostrando que una sola columna no alcanza y que las otras 12 columnas reducen el error en ~680 $/m² (15/15 folds), complementando la prueba sin superficie (MAE 2.186).
+3. **Justificacion de los cortes del veredicto (-20,2 % / +25,8 %) por tramo de precio predicho:** se mantuvo el par unico de cortes y se agrego en la app el cruce contra el quintil del **precio predicho** (lo unico observable antes de conocer el precio real pedido), mostrando que la proporcion de avisos "En linea" es pareja en todos los tramos (~73–85 %) y explicando por que el cruce contra el precio real exhibe asimetria en los extremos (agrupar por precio real incluye el propio residuo).
+4. **Unificacion de cifras entre guion (`Documentacion/Entrega_3_Plan.md`), README y aplicacion:** todas las referencias quedaron alineadas con la corrida reproducible de `build_app.py` (13 de 18 columnas finales, MAE de validacion 1.750 → 1.730 con seleccion → 1.705 ajustado, y MAE en test de 1.722 $/m²).
 
 ## Estado
 

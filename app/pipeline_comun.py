@@ -9,6 +9,7 @@ modelo_final.joblib.
 import numpy as np
 import pandas as pd
 
+from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, FunctionTransformer
@@ -93,3 +94,52 @@ def medir(modelo, X_, y_, g_, repeticiones=3):
                             scoring="neg_mean_absolute_error")
         maes.extend(-r["test_score"])
     return np.array(maes)
+
+
+class MedianaPorGrupo(BaseEstimator, RegressorMixin):
+    """Predice la mediana de y del grupo del aviso, con respaldo jerarquico.
+
+    grupos: lista de niveles, del mas fino al mas grueso. Cada nivel es una tupla
+    de columnas. 'tramo_sup' es la superficie cubierta partida en `n_tramos`
+    cuantiles calculados SOLO con el fold de entrenamiento. Si el grupo tiene
+    menos de `min_n` avisos se cae al nivel siguiente y, al final, a la global.
+    """
+
+    def __init__(self, grupos=(("tramo_sup",),), n_tramos=10, min_n=20):
+        self.grupos = grupos
+        self.n_tramos = n_tramos
+        self.min_n = min_n
+
+    def _preparar(self, X):
+        Z = pd.DataFrame(index=X.index)
+        sup = X["superficie_cubierta_m2"]
+        Z["tramo_sup"] = np.searchsorted(self.cortes_, sup.fillna(self.sup_med_), side="right")
+        Z["localidad"] = X["localidad"].where(X["localidad"].isin(LOCALIDADES_GRANDES), "Interior").fillna("Interior")
+        Z["moneda"] = X["moneda"].fillna("ARS")
+        Z["dormitorios"] = X["dormitorios"].fillna(-1).clip(upper=4)
+        return Z
+
+    def fit(self, X, y):
+        sup = X["superficie_cubierta_m2"]
+        self.sup_med_ = float(sup.median())
+        qs = np.linspace(0, 1, self.n_tramos + 1)[1:-1]
+        self.cortes_ = np.unique(np.quantile(sup.dropna(), qs))
+        Z = self._preparar(X)
+        y = pd.Series(np.asarray(y), index=X.index)
+        self.global_ = float(y.median())
+        self.tablas_ = []
+        for nivel in self.grupos:
+            g = y.groupby([Z[c] for c in nivel])
+            agg = g.agg(["median", "size"])
+            self.tablas_.append(agg[agg["size"] >= self.min_n]["median"].to_dict())
+        return self
+
+    def predict(self, X):
+        Z = self._preparar(X)
+        pred = np.full(len(Z), np.nan)
+        for nivel, tabla in zip(self.grupos, self.tablas_):
+            claves = list(zip(*[Z[c] for c in nivel])) if len(nivel) > 1 else list(Z[nivel[0]])
+            vals = np.array([tabla.get(k, np.nan) for k in claves], dtype=float)
+            pred = np.where(np.isnan(pred), vals, pred)
+        return np.where(np.isnan(pred), self.global_, pred)
+

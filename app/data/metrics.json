@@ -60,10 +60,11 @@
   },
   "comparacion_modelos": [
     {
-      "modelo": "Piso (mediana)",
+      "modelo": "P0 (mediana global)",
       "mae_mean": 2667.0,
       "mae_std": 88.0,
       "mejora_vs_piso": 0.0,
+      "mejora_vs_mejor_piso": -0.167,
       "folds": [
         2552.7,
         2716.1,
@@ -83,10 +84,59 @@
       ]
     },
     {
+      "modelo": "P1 (mediana por superficie)",
+      "mae_mean": 2398.0,
+      "mae_std": 83.0,
+      "mejora_vs_piso": 0.1007,
+      "mejora_vs_mejor_piso": -0.0494,
+      "folds": [
+        2308.3,
+        2512.0,
+        2385.7,
+        2301.1,
+        2474.2,
+        2403.6,
+        2464.1,
+        2206.1,
+        2497.1,
+        2426.1,
+        2311.0,
+        2458.7,
+        2429.2,
+        2432.5,
+        2367.1
+      ]
+    },
+    {
+      "modelo": "P3 (mediana sup x moneda)",
+      "mae_mean": 2285.0,
+      "mae_std": 110.0,
+      "mejora_vs_piso": 0.1431,
+      "mejora_vs_mejor_piso": 0.0,
+      "folds": [
+        2275.7,
+        2437.8,
+        2308.0,
+        2025.6,
+        2371.8,
+        2313.7,
+        2380.8,
+        2073.4,
+        2423.4,
+        2246.5,
+        2231.7,
+        2257.3,
+        2290.7,
+        2313.1,
+        2332.5
+      ]
+    },
+    {
       "modelo": "Lineal",
       "mae_mean": 1949.0,
       "mae_std": 94.0,
       "mejora_vs_piso": 0.2691,
+      "mejora_vs_mejor_piso": 0.147,
       "folds": [
         2026.4,
         1877.0,
@@ -110,6 +160,7 @@
       "mae_mean": 1822.0,
       "mae_std": 75.0,
       "mejora_vs_piso": 0.3169,
+      "mejora_vs_mejor_piso": 0.2028,
       "folds": [
         1884.6,
         1766.2,
@@ -133,6 +184,7 @@
       "mae_mean": 1820.0,
       "mae_std": 66.0,
       "mejora_vs_piso": 0.3177,
+      "mejora_vs_mejor_piso": 0.2038,
       "folds": [
         1778.2,
         1826.4,
@@ -156,6 +208,7 @@
       "mae_mean": 1750.0,
       "mae_std": 67.0,
       "mejora_vs_piso": 0.3438,
+      "mejora_vs_mejor_piso": 0.2342,
       "folds": [
         1722.7,
         1746.7,
@@ -176,6 +229,27 @@
     }
   ],
   "pares_contra_mejor": [
+    {
+      "contra": "P0 (mediana global)",
+      "gana_por": 917.0,
+      "desvio_diferencia": 83.0,
+      "folds_gana": 15,
+      "folds_totales": 15
+    },
+    {
+      "contra": "P1 (mediana por superficie)",
+      "gana_por": 648.0,
+      "desvio_diferencia": 79.0,
+      "folds_gana": 15,
+      "folds_totales": 15
+    },
+    {
+      "contra": "P3 (mediana sup x moneda)",
+      "gana_por": 535.0,
+      "desvio_diferencia": 81.0,
+      "folds_gana": 15,
+      "folds_totales": 15
+    },
     {
       "contra": "Lineal",
       "gana_por": 199.0,
@@ -702,9 +776,13 @@
   "test": {
     "mae_modelo": 1722.0,
     "mae_piso": 2778.0,
+    "mae_piso_superficie": 2420.0,
+    "mae_mejor_piso": 2258.0,
     "mejora_pct": 0.38,
+    "mejora_vs_mejor_piso_pct": 0.2372,
     "error_relativo_mediano_modelo": 0.1138,
     "error_relativo_mediano_piso": 0.191,
+    "error_relativo_mediano_mejor_piso": 0.1538,
     "mae_cv_elegido": 1705.0
   },
   "por_tramo": [
@@ -910,7 +988,11 @@
         "superficie": 160,
         "precio_m2_predicho": 5439.710486298618
       }
-    ]
+    ],
+    "mae_solo_superficie": 2390.0,
+    "desvio_solo_superficie": 71.0,
+    "mae_solo_superficie_test": 2406.0,
+    "mae_mejor_piso": 2285.0
   },
   "cortes_residuo": {
     "bajo": -0.202,
@@ -1025,5 +1107,116 @@
       "avisos_acumulados": 3539
     }
   ],
-  "semilla": 42
+  "semilla": 42,
+  "piso_superficie": {
+    "mae_mean": 2398.0,
+    "mae_std": 83.0
+  },
+  "mejor_piso": {
+    "nombre": "P3 (mediana superficie x moneda)",
+    "mae_mean": 2285.0,
+    "mae_std": 110.0
+  },
+  "escalera_pisos": [
+    {
+      "escalon": "P0: Mediana global (0 col)",
+      "regla": "Mediana unica de todo el entrenamiento",
+      "columnas": 0,
+      "cv_mae": 2667.0,
+      "cv_std": 88.0,
+      "test_mae": 2778.0,
+      "test_err_rel": 0.191
+    },
+    {
+      "escalon": "P1: Mediana por superficie (1 col)",
+      "regla": "Mediana por decil de superficie cubierta",
+      "columnas": 1,
+      "cv_mae": 2398.0,
+      "cv_std": 83.0,
+      "test_mae": 2420.0,
+      "test_err_rel": 0.1587
+    },
+    {
+      "escalon": "P3: Mediana superficie x moneda (2 col)",
+      "regla": "Mediana por decil de superficie y moneda (respaldo jerarquico)",
+      "columnas": 2,
+      "cv_mae": 2285.0,
+      "cv_std": 110.0,
+      "test_mae": 2258.0,
+      "test_err_rel": 0.1538
+    },
+    {
+      "escalon": "Modelo: HistGradientBoosting (13 col)",
+      "regla": "Boosting sobre las 13 columnas seleccionadas",
+      "columnas": 13,
+      "cv_mae": 1705.0,
+      "cv_std": 102.0,
+      "test_mae": 1722.0,
+      "test_err_rel": 0.1138
+    }
+  ],
+  "cruce_veredicto_tramo_real": [
+    {
+      "tramo": "1 (mas barato)",
+      "Oportunidad": 0.273,
+      "En linea": 0.727,
+      "Sobrevalorado": 0.0
+    },
+    {
+      "tramo": "2",
+      "Oportunidad": 0.113,
+      "En linea": 0.872,
+      "Sobrevalorado": 0.015
+    },
+    {
+      "tramo": "3",
+      "Oportunidad": 0.036,
+      "En linea": 0.936,
+      "Sobrevalorado": 0.029
+    },
+    {
+      "tramo": "4",
+      "Oportunidad": 0.031,
+      "En linea": 0.814,
+      "Sobrevalorado": 0.155
+    },
+    {
+      "tramo": "5 (mas caro)",
+      "Oportunidad": 0.007,
+      "En linea": 0.615,
+      "Sobrevalorado": 0.378
+    }
+  ],
+  "cruce_veredicto_tramo_predicho": [
+    {
+      "tramo_predicho": "1 (mas barato)",
+      "Oportunidad": 0.11,
+      "En linea": 0.779,
+      "Sobrevalorado": 0.11
+    },
+    {
+      "tramo_predicho": "2",
+      "Oportunidad": 0.096,
+      "En linea": 0.822,
+      "Sobrevalorado": 0.081
+    },
+    {
+      "tramo_predicho": "3",
+      "Oportunidad": 0.044,
+      "En linea": 0.867,
+      "Sobrevalorado": 0.089
+    },
+    {
+      "tramo_predicho": "4",
+      "Oportunidad": 0.081,
+      "En linea": 0.807,
+      "Sobrevalorado": 0.111
+    },
+    {
+      "tramo_predicho": "5 (mas caro)",
+      "Oportunidad": 0.133,
+      "En linea": 0.689,
+      "Sobrevalorado": 0.178
+    }
+  ]
 }
