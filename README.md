@@ -303,7 +303,7 @@ avisos nuevos por dia, asi que la union suma filas reales.
 ## Entrega 4: la aplicacion
 
 La version final del proyecto: una app de Streamlit, publicada en
-**[completar URL de Streamlit Community Cloud]**, que cuenta los hallazgos
+**[brujula-inmobiliaria.streamlit.app](https://brujula-inmobiliaria.streamlit.app/)**, que cuenta los hallazgos
 de las tres entregas anteriores (el tallo: *El proyecto*, *Los datos*, *Lo
 que encontramos*, *El modelo*) y deja usarlos (la copa: *Explora* y *Proba
 el modelo*). El codigo vive en `app/`.
