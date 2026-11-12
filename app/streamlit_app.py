@@ -68,6 +68,19 @@ def tabla(df):
     return st.table(df)
 
 
+def miles(x):
+    """Separador de miles con punto (es-AR), sin tocar el resto del texto:
+    nunca usar .replace(",", ".") sobre un bloque de markdown completo, porque
+    tambien convierte las comas de puntuacion/listas en puntos."""
+    return f"{x:,.0f}".replace(",", ".")
+
+
+def coma(x, decimales=1, signo=False):
+    """Coma decimal (es-AR) para un numero suelto, sin afectar el resto del texto."""
+    spec = f"{{:{'+' if signo else ''}.{decimales}%}}"
+    return spec.format(x).replace(".", ",")
+
+
 @st.cache_resource
 def cargar_todo():
     with open(DATA / "metrics.json", encoding="utf-8") as f:
@@ -124,10 +137,15 @@ def portada():
                    f"{test['mae_mejor_piso']:,.0f} $/m² del mejor piso (mediana superficie × moneda) · "
                    f"{test['mae_piso']:,.0f} $/m² de la mediana global.".replace(",", "."))
     with c3:
-        st.metric("Error relativo típico", f"{test['error_relativo_mediano_modelo']:.1%}".replace(".", ","))
-        st.caption(f"Contra {test['error_relativo_mediano_mejor_piso']:.1%} del mejor piso y "
-                   f"{test['error_relativo_mediano_piso']:.1%} de la mediana global. "
-                   "Por eso la app no marca sobrevalorado a un aviso que pide solo un 5% más.".replace(".", ","))
+        # Coma decimal solo en el numero, no en la oracion (el .replace global
+        # tambien convertia el punto final de la frase en coma).
+        err_rel_modelo = f"{test['error_relativo_mediano_modelo']:.1%}".replace(".", ",")
+        err_rel_mejor_piso = f"{test['error_relativo_mediano_mejor_piso']:.1%}".replace(".", ",")
+        err_rel_piso_g = f"{test['error_relativo_mediano_piso']:.1%}".replace(".", ",")
+        st.metric("Error relativo típico", err_rel_modelo)
+        st.caption(f"Contra {err_rel_mejor_piso} del mejor piso y "
+                   f"{err_rel_piso_g} de la mediana global. "
+                   "Por eso la app no marca sobrevalorado a un aviso que pide solo un 5% más.")
 
     st.info(
         "La pregunta del proyecto. El modelo es supervisado (regresión sobre "
@@ -162,8 +180,8 @@ def los_datos():
     st.altair_chart(chart, width="stretch")
     st.caption(
         f"Separación estandarizada entre ambas sin convertir: **{h1['separacion_sin_convertir']}** "
-        f"(>0,8 es zona verde: dos poblaciones bien distintas). ARS: {h1['n_ars']:,} avisos, mediana "
-        f"{h1['mediana_ars']:,.0f} $/m². USD: {h1['n_usd']} avisos, mediana {h1['mediana_usd']} USD/m².".replace(",", ".")
+        f"(>0,8 es zona verde: dos poblaciones bien distintas). ARS: {miles(h1['n_ars'])} avisos, mediana "
+        f"{miles(h1['mediana_ars'])} $/m². USD: {h1['n_usd']} avisos, mediana {h1['mediana_usd']} USD/m²."
     )
 
     with st.expander("Cómo lo sabemos"):
@@ -184,13 +202,13 @@ departamento publicado en Inmoclick y en InmoUP son dos filas.
         tabla(tabla_filtro.set_index("paso"))
         st.markdown(f"""
 Los avisos en dólares se convierten con el dólar MEP del 13/10/2026
-(${metrics['dataset']['tc_usd']:,.0f}), porque en toda la ventana se movió
+(${miles(metrics['dataset']['tc_usd'])}), porque en toda la ventana se movió
 menos de 2%: el supuesto de una sola cotización se sostiene. Entran
 {metrics['dataset']['avisos_usd_convertidos']} avisos más que si se
 descartaran.
 
 **Qué columnas se descartaron por fuga:**
-""".replace(",", "."))
+""")
         tabla(pd.DataFrame(metrics["columnas_descartadas_fuga"]).set_index("columna"))
 
         st.markdown("**Cuántos avisos nuevos trajo cada corrida del pipeline:**")
@@ -238,7 +256,7 @@ y Pearson {h2['pearson_lineal']} contra `precio` — una brecha de
 {h2['brecha_lineal']} (zona amarilla: la nube sube ordenada pero curva).
 Pasando ambas variables a log10, Pearson sube a {h2['pearson_log']} y la
 brecha cae a {h2['brecha_log']} (zona verde: la curvatura desaparece).
-Medido sobre {h2['n']:,} avisos en pesos.
+Medido sobre {miles(h2['n'])} avisos en pesos.
 
 **Una que no: la distancia al centro, sola, no explica el precio por m².**
 Spearman entre `dist_centro_km` y `precio_m2` da
@@ -249,7 +267,7 @@ tamaño de departamento, donde el efecto sí aparece en los más chicos.)
 **Cómo se construyó el gráfico.** Transformación `log10` en ambos ejes del
 panel derecho; sin esa transformación, la asimetría de ambas variables
 aplasta la mayoría de los puntos contra el origen.
-""".replace(",", "."))
+""")
 
     st.markdown('<p class="bloque-cierra">Cierra la Entrega 2.</p>', unsafe_allow_html=True)
 
@@ -314,9 +332,9 @@ avisos mal cargados, a diferencia de RMSE.
 mediana. Probamos pisos con 0, 1 y 2 columnas (los cuantiles de superficie se
 calculan **solo con el fold de entrenamiento**, y si un grupo tiene menos de 20
 avisos cae al nivel anterior):
-- **P0 (mediana global, 0 col):** {metrics['piso']['mae_mean']:,.0f} ± {metrics['piso']['mae_std']:,.0f} $/m² en CV ({test['mae_piso']:,.0f} en test).
-- **P1 (mediana por decil de superficie, 1 col):** {metrics['piso_superficie']['mae_mean']:,.0f} ± {metrics['piso_superficie']['mae_std']:,.0f} $/m² en CV ({test['mae_piso_superficie']:,.0f} en test).
-- **P3 (mediana por superficie × moneda, 2 col — mejor piso):** {metrics['mejor_piso']['mae_mean']:,.0f} ± {metrics['mejor_piso']['mae_std']:,.0f} $/m² en CV ({test['mae_mejor_piso']:,.0f} en test).
+- **P0 (mediana global, 0 col):** {miles(metrics['piso']['mae_mean'])} ± {miles(metrics['piso']['mae_std'])} $/m² en CV ({miles(test['mae_piso'])} en test).
+- **P1 (mediana por decil de superficie, 1 col):** {miles(metrics['piso_superficie']['mae_mean'])} ± {miles(metrics['piso_superficie']['mae_std'])} $/m² en CV ({miles(test['mae_piso_superficie'])} en test).
+- **P3 (mediana por superficie × moneda, 2 col — mejor piso):** {miles(metrics['mejor_piso']['mae_mean'])} ± {miles(metrics['mejor_piso']['mae_std'])} $/m² en CV ({miles(test['mae_mejor_piso'])} en test).
 
 **Cómo se armó la validación.** El mismo departamento puede estar publicado
 en los dos portales; si una copia cae en entrenamiento y la otra en
@@ -327,7 +345,7 @@ de los avisos comparte firma con otro. Firmas compartidas entre train y
 test: {metrics['split']['firmas_compartidas_train_test']}.
 
 **La tabla de comparación**, con media y desvío de los 15 folds:
-""".replace(",", "."))
+""")
         tabla_comp = pd.DataFrame(comp)[["modelo", "mae_mean", "mae_std", "mejora_vs_piso", "mejora_vs_mejor_piso"]]
         tabla_comp["mejora_vs_piso"] = tabla_comp["mejora_vs_piso"].map("{:+.1%}".format)
         tabla_comp["mejora_vs_mejor_piso"] = tabla_comp["mejora_vs_mejor_piso"].map("{:+.1%}".format)
@@ -341,28 +359,28 @@ test: {metrics['split']['firmas_compartidas_train_test']}.
 porque sacarlas no empeora el MAE en más de 5 $/m² o ayudan en menos de la
 mitad de los folds: {", ".join(metrics['columnas_salen'])}. Quedan
 {len(metrics['columnas_finales'])}: {", ".join(metrics['columnas_finales'])}.
-Con todas las columnas el MAE era {metrics['mae_con_todas']:,.0f}; con las
-finales, {metrics['mae_con_finales']:,.0f}.
+Con todas las columnas el MAE era {miles(metrics['mae_con_todas'])}; con las
+finales, {miles(metrics['mae_con_finales'])}.
 
 **El ajuste del elegido.** Grilla sobre tasa de aprendizaje, cantidad de
 árboles, tamaño de hoja y tipo de pérdida. Mejor combinación:
-{metrics['grid_mejor_params']}, con MAE {metrics['grid_mejor_mae']:,.0f}
-(contra {metrics['mae_sin_ajustar_finales']:,.0f} sin ajustar: la grilla
+{metrics['grid_mejor_params']}, con MAE {miles(metrics['grid_mejor_mae'])}
+(contra {miles(metrics['mae_sin_ajustar_finales'])} sin ajustar: la grilla
 ayuda poco, menos que el desvío entre folds).
 
 **El resultado en test**, medido una sola vez: MAE
-**{test['mae_modelo']:,.0f} $/m²** contra **{test['mae_mejor_piso']:,.0f}**
+**{miles(test['mae_modelo'])} $/m²** contra **{miles(test['mae_mejor_piso'])}**
 del mejor piso P3 ({test['mejora_vs_mejor_piso_pct']:.0%} menos error) y
-**{test['mae_piso']:,.0f}** de la mediana global ({test['mejora_pct']:.0%}
+**{miles(test['mae_piso'])}** de la mediana global ({test['mejora_pct']:.0%}
 menos error). Error relativo mediano:
-{test['error_relativo_mediano_modelo']:.1%} contra
-{test['error_relativo_mediano_mejor_piso']:.1%} del mejor piso y
-{test['error_relativo_mediano_piso']:.1%} de la mediana global. En validación
-cruzada el elegido daba {test['mae_cv_elegido']:,.0f}: muy cerca del test, la
+{coma(test['error_relativo_mediano_modelo'])} contra
+{coma(test['error_relativo_mediano_mejor_piso'])} del mejor piso y
+{coma(test['error_relativo_mediano_piso'])} de la mediana global. En validación
+cruzada el elegido daba {miles(test['mae_cv_elegido'])}: muy cerca del test, la
 validación no estaba mintiendo.
 
 **Dónde se equivoca**, por tramo de precio real:
-""".replace(",", "."))
+""")
         tabla(pd.DataFrame(metrics["por_tramo"]).set_index("tramo"))
         st.markdown("Por localidad:")
         tabla(pd.DataFrame(metrics["por_localidad"]).set_index("localidad"))
@@ -385,24 +403,24 @@ validación no estaba mintiendo.
    **{fuga['pendiente_log_precio_vs_log_superficie']}** (< 1): cuando los m² se
    duplican, el alquiler sube ~64%, por eso el m² de los grandes es más barato.
 3. *Sin superficie sigue ganando:* al quitarla el MAE pasa a
-   **{fuga['mae_sin_superficie']:,.0f}** ± {fuga['desvio_sin_superficie']:,.0f} $/m²,
-   muy por debajo de la mediana global ({fuga['mae_piso']:,.0f}).
+   **{miles(fuga['mae_sin_superficie'])}** ± {miles(fuga['desvio_sin_superficie'])} $/m²,
+   muy por debajo de la mediana global ({miles(fuga['mae_piso'])}).
 4. *Con una sola columna no alcanza:* un HistGradientBoosting entrenado **solo
-   con `superficie_cubierta_m2`** da **{fuga['mae_solo_superficie']:,.0f}** ±
-   {fuga['desvio_solo_superficie']:,.0f} $/m² en CV ({fuga['mae_solo_superficie_test']:,.0f}
+   con `superficie_cubierta_m2`** da **{miles(fuga['mae_solo_superficie'])}** ±
+   {miles(fuga['desvio_solo_superficie'])} $/m² en CV ({miles(fuga['mae_solo_superficie_test'])}
    en test), prácticamente empatado con el piso P1 de mediana por superficie
-   ({metrics['piso_superficie']['mae_mean']:,.0f}). Las otras 12 columnas bajan
-   el error de {fuga['mae_solo_superficie']:,.0f} a {fuga['mae_modelo_final_cv']:,.0f} $/m²
+   ({miles(metrics['piso_superficie']['mae_mean'])}). Las otras 12 columnas bajan
+   el error de {miles(fuga['mae_solo_superficie'])} a {miles(fuga['mae_modelo_final_cv'])} $/m²
    (ganan en 15 de 15 folds).
 
-**Por qué mantenemos un único par de cortes ({metrics['cortes_residuo']['bajo']:+.1%} / {metrics['cortes_residuo']['alto']:+.1%}) para el veredicto.**
+**Por qué mantenemos un único par de cortes ({coma(metrics['cortes_residuo']['bajo'], signo=True)} / {coma(metrics['cortes_residuo']['alto'], signo=True)}) para el veredicto.**
 Al cruzar el veredicto con el quintil del **precio real**, el quintil más caro
 concentra más avisos "Sobrevalorados" y el más barato más "Oportunidades",
 porque agrupar por el precio real junta en los extremos a los avisos que
 efectivamente piden de más o de menos. En cambio, al cruzar por el quintil del
 **precio predicho** (lo único que conoce la app antes de saber cuánto pide el
 aviso), el reparto es equilibrado en todos los tramos (~73–85% en línea):
-""".replace(",", "."))
+""")
         c_r, c_p = st.columns(2)
         with c_r:
             st.caption("Por quintil de precio real (incluye el residuo)")
@@ -443,7 +461,7 @@ def explora():
         & explo["superficie_cubierta_m2"].between(rango_sup[0], rango_sup[1])
         & explo["moneda"].isin(sel_moneda)
     ]
-    st.caption(f"{len(filtrado):,} avisos en el filtro actual, de {len(explo):,} totales.".replace(",", "."))
+    st.caption(f"{miles(len(filtrado))} avisos en el filtro actual, de {miles(len(explo))} totales.")
 
     chart = alt.Chart(filtrado).mark_circle(size=35, opacity=0.5).encode(
         x=alt.X("superficie_cubierta_m2:Q", scale=alt.Scale(type="log"), title="superficie cubierta (m², log)"),

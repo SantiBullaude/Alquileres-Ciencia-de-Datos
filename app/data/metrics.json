@@ -58,6 +58,53 @@
     "mae_mean": 2667.0,
     "mae_std": 88.0
   },
+  "piso_superficie": {
+    "mae_mean": 2398.0,
+    "mae_std": 83.0
+  },
+  "mejor_piso": {
+    "nombre": "P3 (mediana superficie x moneda)",
+    "mae_mean": 2285.0,
+    "mae_std": 110.0
+  },
+  "escalera_pisos": [
+    {
+      "escalon": "P0: Mediana global (0 col)",
+      "regla": "Mediana unica de todo el entrenamiento",
+      "columnas": 0,
+      "cv_mae": 2667.0,
+      "cv_std": 88.0,
+      "test_mae": 2778.0,
+      "test_err_rel": 0.191
+    },
+    {
+      "escalon": "P1: Mediana por superficie (1 col)",
+      "regla": "Mediana por decil de superficie cubierta",
+      "columnas": 1,
+      "cv_mae": 2398.0,
+      "cv_std": 83.0,
+      "test_mae": 2420.0,
+      "test_err_rel": 0.1587
+    },
+    {
+      "escalon": "P3: Mediana superficie x moneda (2 col)",
+      "regla": "Mediana por decil de superficie y moneda (respaldo jerarquico)",
+      "columnas": 2,
+      "cv_mae": 2285.0,
+      "cv_std": 110.0,
+      "test_mae": 2258.0,
+      "test_err_rel": 0.1538
+    },
+    {
+      "escalon": "Modelo: HistGradientBoosting (13 col)",
+      "regla": "Boosting sobre las 13 columnas seleccionadas",
+      "columnas": 13,
+      "cv_mae": 1705.0,
+      "cv_std": 102.0,
+      "test_mae": 1722.0,
+      "test_err_rel": 0.1138
+    }
+  ],
   "comparacion_modelos": [
     {
       "modelo": "P0 (mediana global)",
@@ -953,7 +1000,11 @@
     "pendiente_log_precio_vs_log_superficie": 0.71,
     "mae_sin_superficie": 2152.0,
     "desvio_sin_superficie": 102.0,
+    "mae_solo_superficie": 2390.0,
+    "desvio_solo_superficie": 71.0,
+    "mae_solo_superficie_test": 2406.0,
     "mae_piso": 2667.0,
+    "mae_mejor_piso": 2285.0,
     "mae_modelo_final_cv": 1705.0,
     "curva": [
       {
@@ -988,11 +1039,7 @@
         "superficie": 160,
         "precio_m2_predicho": 5439.710486298618
       }
-    ],
-    "mae_solo_superficie": 2390.0,
-    "desvio_solo_superficie": 71.0,
-    "mae_solo_superficie_test": 2406.0,
-    "mae_mejor_piso": 2285.0
+    ]
   },
   "cortes_residuo": {
     "bajo": -0.202,
@@ -1003,6 +1050,70 @@
     "Sobrevalorado": 77,
     "Oportunidad": 63
   },
+  "cruce_veredicto_tramo_real": [
+    {
+      "tramo": "1 (mas barato)",
+      "Oportunidad": 0.273,
+      "En linea": 0.727,
+      "Sobrevalorado": 0.0
+    },
+    {
+      "tramo": "2",
+      "Oportunidad": 0.113,
+      "En linea": 0.872,
+      "Sobrevalorado": 0.015
+    },
+    {
+      "tramo": "3",
+      "Oportunidad": 0.036,
+      "En linea": 0.936,
+      "Sobrevalorado": 0.029
+    },
+    {
+      "tramo": "4",
+      "Oportunidad": 0.031,
+      "En linea": 0.814,
+      "Sobrevalorado": 0.155
+    },
+    {
+      "tramo": "5 (mas caro)",
+      "Oportunidad": 0.007,
+      "En linea": 0.615,
+      "Sobrevalorado": 0.378
+    }
+  ],
+  "cruce_veredicto_tramo_predicho": [
+    {
+      "tramo_predicho": "1 (mas barato)",
+      "Oportunidad": 0.11,
+      "En linea": 0.779,
+      "Sobrevalorado": 0.11
+    },
+    {
+      "tramo_predicho": "2",
+      "Oportunidad": 0.096,
+      "En linea": 0.822,
+      "Sobrevalorado": 0.081
+    },
+    {
+      "tramo_predicho": "3",
+      "Oportunidad": 0.044,
+      "En linea": 0.867,
+      "Sobrevalorado": 0.089
+    },
+    {
+      "tramo_predicho": "4",
+      "Oportunidad": 0.081,
+      "En linea": 0.807,
+      "Sobrevalorado": 0.111
+    },
+    {
+      "tramo_predicho": "5 (mas caro)",
+      "Oportunidad": 0.133,
+      "En linea": 0.689,
+      "Sobrevalorado": 0.178
+    }
+  ],
   "hallazgos_eda": {
     "h1_monedas": {
       "n_ars": 3095,
@@ -1107,116 +1218,5 @@
       "avisos_acumulados": 3539
     }
   ],
-  "semilla": 42,
-  "piso_superficie": {
-    "mae_mean": 2398.0,
-    "mae_std": 83.0
-  },
-  "mejor_piso": {
-    "nombre": "P3 (mediana superficie x moneda)",
-    "mae_mean": 2285.0,
-    "mae_std": 110.0
-  },
-  "escalera_pisos": [
-    {
-      "escalon": "P0: Mediana global (0 col)",
-      "regla": "Mediana unica de todo el entrenamiento",
-      "columnas": 0,
-      "cv_mae": 2667.0,
-      "cv_std": 88.0,
-      "test_mae": 2778.0,
-      "test_err_rel": 0.191
-    },
-    {
-      "escalon": "P1: Mediana por superficie (1 col)",
-      "regla": "Mediana por decil de superficie cubierta",
-      "columnas": 1,
-      "cv_mae": 2398.0,
-      "cv_std": 83.0,
-      "test_mae": 2420.0,
-      "test_err_rel": 0.1587
-    },
-    {
-      "escalon": "P3: Mediana superficie x moneda (2 col)",
-      "regla": "Mediana por decil de superficie y moneda (respaldo jerarquico)",
-      "columnas": 2,
-      "cv_mae": 2285.0,
-      "cv_std": 110.0,
-      "test_mae": 2258.0,
-      "test_err_rel": 0.1538
-    },
-    {
-      "escalon": "Modelo: HistGradientBoosting (13 col)",
-      "regla": "Boosting sobre las 13 columnas seleccionadas",
-      "columnas": 13,
-      "cv_mae": 1705.0,
-      "cv_std": 102.0,
-      "test_mae": 1722.0,
-      "test_err_rel": 0.1138
-    }
-  ],
-  "cruce_veredicto_tramo_real": [
-    {
-      "tramo": "1 (mas barato)",
-      "Oportunidad": 0.273,
-      "En linea": 0.727,
-      "Sobrevalorado": 0.0
-    },
-    {
-      "tramo": "2",
-      "Oportunidad": 0.113,
-      "En linea": 0.872,
-      "Sobrevalorado": 0.015
-    },
-    {
-      "tramo": "3",
-      "Oportunidad": 0.036,
-      "En linea": 0.936,
-      "Sobrevalorado": 0.029
-    },
-    {
-      "tramo": "4",
-      "Oportunidad": 0.031,
-      "En linea": 0.814,
-      "Sobrevalorado": 0.155
-    },
-    {
-      "tramo": "5 (mas caro)",
-      "Oportunidad": 0.007,
-      "En linea": 0.615,
-      "Sobrevalorado": 0.378
-    }
-  ],
-  "cruce_veredicto_tramo_predicho": [
-    {
-      "tramo_predicho": "1 (mas barato)",
-      "Oportunidad": 0.11,
-      "En linea": 0.779,
-      "Sobrevalorado": 0.11
-    },
-    {
-      "tramo_predicho": "2",
-      "Oportunidad": 0.096,
-      "En linea": 0.822,
-      "Sobrevalorado": 0.081
-    },
-    {
-      "tramo_predicho": "3",
-      "Oportunidad": 0.044,
-      "En linea": 0.867,
-      "Sobrevalorado": 0.089
-    },
-    {
-      "tramo_predicho": "4",
-      "Oportunidad": 0.081,
-      "En linea": 0.807,
-      "Sobrevalorado": 0.111
-    },
-    {
-      "tramo_predicho": "5 (mas caro)",
-      "Oportunidad": 0.133,
-      "En linea": 0.689,
-      "Sobrevalorado": 0.178
-    }
-  ]
+  "semilla": 42
 }
