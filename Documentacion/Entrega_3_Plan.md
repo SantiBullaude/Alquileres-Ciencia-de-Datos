@@ -86,9 +86,11 @@ impresas.
 - No usamos RMSE porque eleva los errores al cuadrado: un par de avisos mal
   cargados (hay uno de 99.000 $/m2 con mediana de 10.500) pesarian demasiado.
 
-**El piso (1.4): 2.667 $/m2.**
-> "Un modelo que no mira nada y siempre dice la mediana. Si no le ganamos a
-> esto, el modelo no sirve."
+**La escalera de pisos (1.4): de 2.667 a 2.285 $/m2.**
+> "Armamos una escalera de pisos: la mediana global (P0: **2.667**), la mediana
+> por tramo de superficie (P1: **2.398**) y la mediana por superficie y moneda
+> (P3: **2.285**, el mejor piso). Si el modelo no le gana con holgura al mejor
+> piso, no justifica su complejidad."
 
 **Como partimos los datos (1.3 y 1.6) - lo mas importante del bloque:**
 - El mismo depto puede estar publicado en los dos portales. Si una copia cae
@@ -97,7 +99,7 @@ impresas.
   firma **nunca queda de los dos lados**. El 24 % de los avisos comparte
   firma con otro.
 - **Señalar la salida de 1.6:** "lo medimos: al azar el error da **1.651**,
-  por firma da **1.758**. Esos **107 pesos** eran el modelo copiandose."
+  por firma da **1.750**. Esos **99 pesos** eran el modelo copiandose."
 
 **Pipeline (1.5), en una oracion:**
 > "Todo lo que se le hace a los datos (completar vacios, logaritmos, pasar
@@ -112,19 +114,23 @@ impresas.
 "pedazo contra pedazo".
 
 **Que decir:**
-> "Probamos cuatro modelos, todos con las mismas columnas y los mismos 15
-> pedazos de validacion: una lineal, una lineal sobre el logaritmo del
-> precio, un Random Forest y un HistGradientBoosting."
+> "Probamos la escalera de pisos y cuatro familias de modelos, todos con las
+> mismas columnas y los mismos 15 pedazos de validacion: una lineal, una
+> lineal sobre el logaritmo del precio, un Random Forest y un
+> HistGradientBoosting."
 
 **Señalar en el grafico 3:**
 - Cada caja son los 15 errores de un modelo. **Mas a la izquierda es mejor.**
-- "El piso esta solo, muy a la derecha, en 2.667. Todos le ganan por mucho."
-- "El boosting es el de mas a la izquierda: **1.758**."
+- "La mediana global esta a la derecha en 2.667; la mediana por superficie baja
+  a 2.398 y por superficie × moneda a 2.285."
+- "El boosting es el de mas a la izquierda: **1.750**."
 
 **Señalar la tabla de abajo (pedazo contra pedazo):**
-- Contra la lineal gana en **15 de 15** pedazos, por **192** pesos, con un
-  desvio de 88.
-- Contra los otros dos gana por ~63, en 14 de 15.
+- Contra el mejor piso (P3) gana en **15 de 15** pedazos, por **535** pesos (y
+  el modelo ajustado final le gana por **575** pesos, desvio 80).
+- Contra la lineal gana en **15 de 15** pedazos, por **199** pesos, con un
+  desvio de 84.
+- Contra la lineal en log y el bosque gana por **~70** pesos, en **14 de 15**.
 
 **Conclusion:**
 > "La consigna dice que si el complejo no le gana al simple por mas que el
@@ -139,13 +145,12 @@ impresas.
 
 **Columnas (2.2):**
 > "Sacamos cada columna de a una y medimos si el modelo empeoraba. Quedaron
-> **9 de 18**, y con esas 9 el modelo erra un poco menos."
+> **13 de 18**, y con esas 13 el modelo baja de **1.750 a 1.730 $/m2**."
 
-- Las que mas aportan: **superficie (+217)** y **moneda (+147)**, que es la
+- Las que mas aportan: **superficie (+252)** y **moneda (+156)**, que es la
   de la correccion de H1.
-- Las que salieron: `zona_geo`, `densidad_1km`, `fecha_scraping`,
-  `superficie_total_m2`, `antiguedad`, `fuente` y otras. Sacarlas no empeora
-  nada.
+- Las 5 que salieron: `tiene_expensas`, `acepta_mascotas`, `tipo_anunciante`,
+  `fecha_scraping` y `superficie_total_m2`. Sacarlas mejora el error.
 
 **Ajuste (2.3), grafico 4:**
 - Cada punto es una combinacion de "perillas" del modelo; probamos 32, de
@@ -153,21 +158,20 @@ impresas.
 - **Señalar:** "todas las azules van antes que las naranjas. Las azules
   castigan el error comun y las naranjas el error al cuadrado: confirma que
   MAE era la metrica correcta."
-- **Señalar la linea punteada:** "es el modelo sin ajustar. El mejor apenas
-  queda abajo: el ajuste mejoro **7 pesos**, menos que el desvio. Los valores
-  por defecto ya estaban bien."
-- Si lo notan: la leyenda dice "10 columnas" pero son 9; es solo el texto,
-  el valor de la linea (1.753) es el correcto.
+- **Señalar la linea punteada:** "es el modelo sin ajustar (1.730). El mejor
+  llega a **1.705**: el ajuste mejoro **25 pesos**, menos que el desvio. Los
+  valores por defecto ya estaban bien."
 
 **Examen final (3.1):**
-> "Recien ahora miramos el test, una sola vez. El modelo erra **1.763** contra
-> **2.778** del piso: **37 % menos error**. Y es casi igual a lo que daba en
-> validacion (1.746): la validacion no nos estaba mintiendo."
+> "Recien ahora miramos el test, una sola vez. El modelo erra **1.722** contra
+> **2.258** del mejor piso P3 (**24 % menos error**) y contra **2.778** de la
+> mediana global (**38 % menos error**). Y es casi igual a lo que daba en
+> validacion (**1.705**): la validacion no nos estaba mintiendo."
 
 **Es mucho o poco:**
-> "En un depto de 50 m2 son unos $88.000 por mes de error. La app no puede
-> marcar como caro un aviso que pide 5 % mas: solo los que se alejan 20 % o
-> mas."
+> "En un depto de 50 m2 son unos $86.000 por mes de error (11,4 % de error
+> relativo mediano). La app no puede marcar como caro un aviso que pide 5 %
+> mas: solo los que se alejan ~20 % o mas."
 
 ---
 
@@ -209,22 +213,27 @@ impresas.
 > sospechar de una fuga. La superficie esta en la formula del objetivo, asi
 > que la revisamos."
 
-**Tres chequeos, rapido:**
+**Cuatro chequeos, rapido:**
 1. Existe al predecir: la publica el aviso.
 2. No contiene la respuesta: si un depto tiene el doble de metros, el
    alquiler no sube el doble, sube ~64 %. Por eso el m2 de los grandes es mas
    barato.
 3. Sin ella el modelo sigue ganandole al piso (2.186 contra 2.667).
+4. Con una sola columna (solo superficie) el boosting da **2.390** en CV
+   (**2.406** en test), empatado con la mediana por superficie (2.398): las
+   otras 12 columnas bajan el error en **685 $/m2** hasta **1.705**.
 
 **Grafico 7 (la curva):**
 > "Le cambiamos solo la superficie a todos los avisos. La curva baja suave,
 > como el mercado real. Si fuera trampa veriamos saltos raros."
 
 **Lo que no anduvo (seccion 4), cierre:**
-> "Lo que probamos y no sirvio: partir al azar (era fuga), 9 columnas que no
-> aportaron, castigar el error al cuadrado, y el ajuste de la grilla, que casi
-> no movio nada. Lo que falta para errar menos en los caros es la descripcion
-> del aviso."
+> "Lo que probamos y no sirvio: partir al azar (era fuga), 5 columnas que no
+> aportaron, castigar el error al cuadrado, y el ajuste de la grilla, que solo
+> mejoro 25 $/m2. Y para el veredicto mantuvimos un unico par de cortes
+> (-20,2 % / +25,8 %): al cruzar por tramo de precio predicho (lo que ve la app)
+> el reparto es parejo (~73–85 % en linea). Lo que falta para errar menos en los
+> caros es la descripcion del aviso."
 
 ---
 
@@ -237,14 +246,14 @@ Porque con la superficie da el objetivo exacto, y porque es lo que queremos
 evaluar: si ya lo tenes, no hay nada que predecir.
 
 **"Por que una sola cotizacion del dolar?"**
-Porque se movio menos de 2 % en toda la ventana. Al lado de un error de 12 %
+Porque se movio menos de 2 % en toda la ventana. Al lado de un error de 11,4 %
 no cambia nada.
 
 **"`moneda` no es trampa?"**
 No. Dice en que moneda se publico, no cuanto pide. El aviso la trae.
 
 **"Por que partieron por firma y no al azar?"**
-Porque hay deptos publicados dos veces. Al azar el error daba 107 pesos mas
+Porque hay deptos publicados dos veces. Al azar el error daba 99 pesos mas
 bajo, y era falso.
 
 **"Por que no por fecha?"**
@@ -252,7 +261,8 @@ La fecha de cada aviso es la ultima vez que lo vimos, y el 58 % tiene la
 misma (13/10). No hay un orden limpio para cortar.
 
 **"Por que mediana en el piso y no promedio?"**
-Porque con MAE el numero fijo que menos erra es la mediana.
+Porque con MAE el numero fijo que menos erra es la mediana. Y ademas armamos
+una escalera de medianas por grupo (superficie y superficie × moneda).
 
 **"Por que MAE y no RMSE?"**
 RMSE se deja arrastrar por los avisos mal cargados. Y la grilla lo confirma:
@@ -285,12 +295,13 @@ inventar.
 | Cotizacion | MEP 13/10: $1.540 (se movio < 2 % en la ventana) |
 | USD vs ARS | 54 % mas caros por m2 |
 | H3, deptos de hasta 40 m2 | -0,27 (amarilla) |
-| Piso | 2.667 (validacion) / 2.778 (test) |
-| Modelo elegido | 1.746 (validacion) / **1.763 (test)** |
-| Mejora sobre el piso | 37 % |
-| Error relativo | 12,0 % (piso: 19,1 %) |
-| Fuga al partir al azar | 107 (1.651 vs 1.758) |
-| Boosting vs lineal | gana por 192, en 15 de 15 |
-| Columnas finales | 9 de 18 |
-| Mejora de la grilla | 7 pesos |
+| Escalera de pisos (CV / test) | P0 global: 2.667 / 2.778 · P1 superficie: 2.398 / 2.420 · **P3 superficie × moneda: 2.285 / 2.258** |
+| Modelo elegido | **1.705** (validacion) / **1.722 (test)** |
+| Mejora sobre los pisos (test) | **24 % menos error que el mejor piso P3** (y **38 % menos que P0 global**) |
+| Error relativo mediano (test) | **11,4 %** (mejor piso P3: 14,4 % · piso global P0: 19,1 %) |
+| Fuga al partir al azar | 99 (1.651 vs 1.750) |
+| Boosting vs lineal | gana por **199**, en 15 de 15 (desvio 84); vs lineal log y RF por **~70** en 14 de 15 |
+| Columnas finales | **13 de 18** (salen `tiene_expensas`, `acepta_mascotas`, `tipo_anunciante`, `fecha_scraping`, `superficie_total_m2`) |
+| Mejora de la grilla | **25 pesos** (de 1.730 a 1.705) |
+| Chequeo una sola columna | HGB solo superficie: **2.390** en CV (2.406 en test) vs **1.705** con las 13 columnas; sin superficie: **2.186** |
 | Superficie: doble de metros | el alquiler sube ~64 % (pendiente 0,71) |

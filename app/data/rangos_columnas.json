@@ -1,0 +1,110 @@
+{
+  "superficie_cubierta_m2": {
+    "tipo": "numerica",
+    "min": 10.0,
+    "max": 850.0,
+    "mediana": 60.0
+  },
+  "dormitorios": {
+    "tipo": "numerica",
+    "min": 0.0,
+    "max": 10.0,
+    "mediana": 2.0
+  },
+  "banos": {
+    "tipo": "numerica",
+    "min": 0.0,
+    "max": 10.0,
+    "mediana": 1.0
+  },
+  "antiguedad": {
+    "tipo": "numerica",
+    "min": 1.0,
+    "max": 2026.0,
+    "mediana": 15.0
+  },
+  "cochera": {
+    "tipo": "categorica",
+    "categorias": [
+      "Cochera Pasante",
+      "Garage",
+      "Garage Doble",
+      "Garage/Cochera",
+      "Indistinto",
+      "Si",
+      "Sin Cochera"
+    ]
+  },
+  "estado_conservacion": {
+    "tipo": "categorica",
+    "categorias": [
+      "---",
+      "Bueno",
+      "Excelente",
+      "Muy Bueno",
+      "Recicled",
+      "Regular",
+      "Semi new"
+    ]
+  },
+  "valor_expensas": {
+    "tipo": "numerica",
+    "min": 1.0,
+    "max": 950000.0,
+    "mediana": 60000.0
+  },
+  "localidad": {
+    "tipo": "categorica",
+    "categorias": [
+      "Capital",
+      "General alvear",
+      "Godoy Cruz",
+      "Guaymallen",
+      "Las Heras",
+      "Lujan de Cuyo",
+      "Maipu",
+      "Rivadavia",
+      "San Martin",
+      "San Rafael",
+      "Tunuyan"
+    ]
+  },
+  "zona_geo": {
+    "tipo": "categorica",
+    "categorias": [
+      "-1",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  },
+  "dist_centro_km": {
+    "tipo": "numerica",
+    "min": 0.0166357219520156,
+    "max": 255.425427718045,
+    "mediana": 2.817875543824892
+  },
+  "densidad_1km": {
+    "tipo": "numerica",
+    "min": 0.0,
+    "max": 570.0,
+    "mediana": 122.5
+  },
+  "fuente": {
+    "tipo": "categorica",
+    "categorias": [
+      "inmoclick",
+      "inmoup"
+    ]
+  },
+  "moneda": {
+    "tipo": "categorica",
+    "categorias": [
+      "ARS",
+      "USD"
+    ]
+  }
+}
