@@ -20,7 +20,7 @@
   "antiguedad": {
     "tipo": "numerica",
     "min": 1.0,
-    "max": 2026.0,
+    "max": 70.0,
     "mediana": 15.0
   },
   "cochera": {

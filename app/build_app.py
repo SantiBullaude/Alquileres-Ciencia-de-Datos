@@ -433,15 +433,22 @@ def main():
         elif col == "fecha_scraping":
             rangos[col] = {"tipo": "fecha", "min": str(serie_cruda.min()), "max": str(serie_cruda.max())}
         elif len(serie_cruda):
+            # antiguedad: 20 avisos (de 2.029) cargaron el anio de construccion
+            # (2019, 2026) en vez de los anios de antiguedad -- el resto va de
+            # 1 a ~70. No se tocan en el entrenamiento (son filas reales, el
+            # modelo las sigue viendo tal cual), pero el rango del formulario
+            # no tiene sentido yendo hasta "2026 anios": se calcula sobre la
+            # parte limpia, con un tope de 100 de cualquier forma.
+            serie_rango = serie_cruda[serie_cruda <= 100] if col == "antiguedad" else serie_cruda
             # dormitorios/banos/antiguedad/densidad_1km son conteos enteros
             # (float64 solo por los NaN). Con cantidad par de observaciones la
             # mediana puede caer en .5 (ej 122.5 vecinos): si la serie entera
             # es siempre entera, se redondea para que el valor por defecto del
             # slider tenga sentido (ver streamlit_app.py: min/max/mediana
             # enteros -> slider de enteros).
-            es_entero = bool((serie_cruda == serie_cruda.round()).all())
-            mediana = round(serie_cruda.median()) if es_entero else serie_cruda.median()
-            rangos[col] = {"tipo": "numerica", "min": float(serie_cruda.min()), "max": float(serie_cruda.max()),
+            es_entero = bool((serie_rango == serie_rango.round()).all())
+            mediana = round(serie_rango.median()) if es_entero else serie_rango.median()
+            rangos[col] = {"tipo": "numerica", "min": float(serie_rango.min()), "max": float(serie_rango.max()),
                             "mediana": float(mediana)}
 
     metrics = {
