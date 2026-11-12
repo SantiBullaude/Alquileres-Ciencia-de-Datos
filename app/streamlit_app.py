@@ -471,7 +471,8 @@ def explora():
             alt.Tooltip("direccion:N", title="Dirección"),
             alt.Tooltip("localidad:N", title="Localidad"),
             alt.Tooltip("superficie_cubierta_m2:Q", title="Superficie (m²)"),
-            alt.Tooltip("dormitorios:Q", title="Dormitorios"),
+            alt.Tooltip("dormitorios:Q", title="Dormitorios", format=",.0f"),
+            alt.Tooltip("banos:Q", title="Baños", format=",.0f"),
             alt.Tooltip("precio:Q", title="Precio publicado", format=",.0f"),
             alt.Tooltip("precio_m2:Q", title="precio_m2 real", format=",.0f"),
             alt.Tooltip("precio_m2_predicho:Q", title="precio_m2 estimado por el modelo", format=",.0f"),
@@ -514,8 +515,16 @@ def proba_el_modelo():
         i += 1
         with destino:
             if info["tipo"] == "numerica":
-                valores[col] = st.slider(etiqueta, min_value=round(info["min"], 1), max_value=round(info["max"], 1),
-                                          value=round(info["mediana"], 1))
+                lo, hi, med = info["min"], info["max"], info["mediana"]
+                # dormitorios/banos/antiguedad son conteos enteros, pero quedan
+                # en float64 por los NaN del dataset: si los 3 valores son
+                # enteros, el slider tambien lo es (si no, Streamlit deja
+                # elegir decimales que no tienen sentido, ej. "2,5 banos").
+                if float(lo).is_integer() and float(hi).is_integer() and float(med).is_integer():
+                    valores[col] = st.slider(etiqueta, min_value=int(lo), max_value=int(hi), value=int(med))
+                else:
+                    valores[col] = st.slider(etiqueta, min_value=round(lo, 1), max_value=round(hi, 1),
+                                              value=round(med, 1))
             elif info["tipo"] == "categorica":
                 valores[col] = st.selectbox(etiqueta, info["categorias"])
             elif info["tipo"] == "fecha":

@@ -433,8 +433,16 @@ def main():
         elif col == "fecha_scraping":
             rangos[col] = {"tipo": "fecha", "min": str(serie_cruda.min()), "max": str(serie_cruda.max())}
         elif len(serie_cruda):
+            # dormitorios/banos/antiguedad/densidad_1km son conteos enteros
+            # (float64 solo por los NaN). Con cantidad par de observaciones la
+            # mediana puede caer en .5 (ej 122.5 vecinos): si la serie entera
+            # es siempre entera, se redondea para que el valor por defecto del
+            # slider tenga sentido (ver streamlit_app.py: min/max/mediana
+            # enteros -> slider de enteros).
+            es_entero = bool((serie_cruda == serie_cruda.round()).all())
+            mediana = round(serie_cruda.median()) if es_entero else serie_cruda.median()
             rangos[col] = {"tipo": "numerica", "min": float(serie_cruda.min()), "max": float(serie_cruda.max()),
-                            "mediana": float(serie_cruda.median())}
+                            "mediana": float(mediana)}
 
     metrics = {
         "dataset": {"csv": str(csv.relative_to(RAIZ)), "filas_totales": n_total,

@@ -91,7 +91,7 @@
     "tipo": "numerica",
     "min": 0.0,
     "max": 570.0,
-    "mediana": 122.5
+    "mediana": 122.0
   },
   "fuente": {
     "tipo": "categorica",
