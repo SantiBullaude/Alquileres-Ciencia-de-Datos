@@ -50,7 +50,7 @@ ETIQUETAS_COLUMNAS = {
     "tiene_expensas": "Tiene expensas",
     "acepta_mascotas": "Acepta mascotas",
     "localidad": "Localidad",
-    "zona_geo": "Zona geografica (cluster)",
+    "zona_geo": "Zona geografica",
     "dist_centro_km": "Distancia al centro (km)",
     "densidad_1km": "Densidad en 1 km (avisos vecinos)",
     "tipo_anunciante": "Tipo de anunciante",
@@ -526,7 +526,16 @@ def proba_el_modelo():
                     valores[col] = st.slider(etiqueta, min_value=round(lo, 1), max_value=round(hi, 1),
                                               value=round(med, 1))
             elif info["tipo"] == "categorica":
-                valores[col] = st.selectbox(etiqueta, info["categorias"])
+                etiquetas_cat = info.get("etiquetas")
+                if etiquetas_cat:
+                    # zona_geo: el codigo de KMeans no dice nada por si solo,
+                    # se muestra con la localidad mas comun de ese cluster
+                    # (el valor real que recibe el pipeline sigue siendo el
+                    # codigo, no el texto).
+                    valores[col] = st.selectbox(etiqueta, info["categorias"],
+                                                 format_func=lambda c: etiquetas_cat.get(c, c))
+                else:
+                    valores[col] = st.selectbox(etiqueta, info["categorias"])
             elif info["tipo"] == "fecha":
                 valores[col] = info["max"]  # fecha de scraping: se fija a la corrida mas reciente, no la carga el usuario
 

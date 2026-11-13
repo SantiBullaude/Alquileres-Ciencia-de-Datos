@@ -430,6 +430,23 @@ def main():
             else:
                 cats = sorted(str(c) for c in serie_cruda.unique().tolist())
             rangos[col] = {"tipo": "categorica", "categorias": cats}
+            if col == "zona_geo":
+                # El codigo de KMeans no dice nada por si solo para alguien
+                # que ve el proyecto por primera vez: se etiqueta con la
+                # localidad mas comun de cada cluster (sobre X_train).
+                etiquetas = {}
+                for cat in cats:
+                    sub = X_train.loc[X_train["zona_geo"] == float(cat)]
+                    loc_top = sub["localidad"].mode()
+                    loc_top = loc_top.iloc[0] if len(loc_top) else "sin dato"
+                    dist_mediana = sub["dist_centro_km"].median()
+                    if cat == "-1":
+                        etiquetas[cat] = f"{cat} - Interior (lejos del Gran Mendoza)"
+                    elif pd.notna(dist_mediana):
+                        etiquetas[cat] = f"{cat} - {loc_top} (~{dist_mediana:.0f} km del centro)"
+                    else:
+                        etiquetas[cat] = f"{cat} - {loc_top}"
+                rangos[col]["etiquetas"] = etiquetas
         elif col == "fecha_scraping":
             rangos[col] = {"tipo": "fecha", "min": str(serie_cruda.min()), "max": str(serie_cruda.max())}
         elif len(serie_cruda):

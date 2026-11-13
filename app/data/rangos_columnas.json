@@ -79,7 +79,16 @@
       "3",
       "4",
       "5"
-    ]
+    ],
+    "etiquetas": {
+      "-1": "-1 - Interior (lejos del Gran Mendoza)",
+      "0": "0 - Guaymallen (~5 km del centro)",
+      "1": "1 - Lujan de Cuyo (~16 km del centro)",
+      "2": "2 - Capital (~1 km del centro)",
+      "3": "3 - Godoy Cruz (~5 km del centro)",
+      "4": "4 - Maipu (~11 km del centro)",
+      "5": "5 - Capital (~3 km del centro)"
+    }
   },
   "dist_centro_km": {
     "tipo": "numerica",
