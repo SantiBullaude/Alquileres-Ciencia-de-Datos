@@ -21,3 +21,7 @@ docker-compose.yaml
 
 # airflow.cfg generado por el contenedor: es propio de cada maquina
 config/
+
+# guiones de exposicion: material interno de ensayo (reparto, quien dice
+# que), quedan en local en vez del repo
+Documentacion/Entrega_*_Plan.md
