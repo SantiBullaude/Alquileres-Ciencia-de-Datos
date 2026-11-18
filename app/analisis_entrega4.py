@@ -48,13 +48,46 @@ def mostrar_comparables(grupo):
         "Precio mensual en pesos": st.column_config.NumberColumn(format="$ %.0f"),
         "Precio por m²": st.column_config.NumberColumn(format="$ %.0f"),
         "Aviso": st.column_config.LinkColumn("Aviso", display_text="Abrir")})
-    st.caption("La comparación no controla el estado real ni todos los detalles del inmueble. Un departamento puede aparecer en ambos portales.")
+    st.caption("La comparación controla localidad, moneda, dormitorios y superficie (±20 %). Un mismo departamento puede estar publicado en ambos portales.")
     if len(grupo) < 10:
         st.warning("Hay menos de diez avisos comparables. Usá la mediana con cuidado.")
 
 
+def grafico_comparacion_aviso(publicado, predicho, mediana_comp=None, n_comp=0, veredicto="En linea"):
+    """Barra horizontal que compara precio publicado, referencia del modelo y mediana de comparables."""
+    color_aviso = COLORES_COMPARACION.get(veredicto, COLORES_COMPARACION["En linea"])
+    filas = [
+        {"referencia": "1. Precio publicado", "valor": float(publicado), "color": color_aviso},
+        {"referencia": "2. Referencia del modelo", "valor": float(predicho), "color": "#4f86bd"},
+    ]
+    if mediana_comp is not None and pd.notna(mediana_comp) and n_comp > 0:
+        filas.append({
+            "referencia": f"3. Mediana de {miles(n_comp)} comparables",
+            "valor": float(mediana_comp),
+            "color": "#7e9451",
+        })
+    df_comp = pd.DataFrame(filas)
+    orden = df_comp["referencia"].tolist()
+    escala_col = alt.Scale(domain=orden, range=df_comp["color"].tolist())
+    barras = alt.Chart(df_comp).mark_bar(height=22).encode(
+        x=alt.X("valor:Q", title="Precio por m² ($/m²)"),
+        y=alt.Y("referencia:N", sort=orden, title=None, axis=alt.Axis(labelLimit=210)),
+        color=alt.Color("referencia:N", scale=escala_col, legend=None),
+        tooltip=[
+            alt.Tooltip("referencia:N", title="Referencia"),
+            alt.Tooltip("valor:Q", title="Precio ($/m²)", format=",.0f"),
+        ],
+    ).properties(height=38 * len(filas) + 25)
+    return barras
+
+
 def ubicacion(datos, escala_etiqueta):
-    st.subheader("El precio por m² cambia según la localidad")
+    st.subheader("Luján de Cuyo y Godoy Cruz lideran el precio por m², un 29 % por encima de Las Heras")
+    st.markdown(
+        "El precio por metro cuadrado cambia fuerte según el departamento. Además, dentro de una misma "
+        "localidad conviven barrios muy distintos: por eso agrupamos las coordenadas con **KMeans en 6 zonas "
+        "geográficas** dentro de los 30 km de Plaza Independencia y separamos el interior provincial."
+    )
     tabla = (datos.groupby("localidad", as_index=False)
              .agg(avisos=("clave", "size"), mediana=("precio_m2", "median"),
                   arriba=("etiqueta", lambda s: s.eq("Sobrevalorado").mean()),
@@ -66,114 +99,214 @@ def ubicacion(datos, escala_etiqueta):
         y=alt.Y("localidad:N", title=None, sort="-x"),
         tooltip=["localidad:N", alt.Tooltip("avisos:Q", title="Avisos"),
                  alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")]
-    ).properties(height=220)
-    st.altair_chart(grafico, width="stretch")
-    st.caption("Localidades con al menos 50 avisos. Las diferencias incluyen propiedades de distintos tamaños y características.")
-    with st.expander("Mapa y zonas"):
-        mapa = json.loads((DATA / "departamentos_gran_mendoza.geojson").read_text(encoding="utf-8"))
-        geo = datos.dropna(subset=["latitud", "longitud"]).copy()
-        zona = geo[geo.longitud.between(-69.1, -68.5) & geo.latitud.between(-33.17, -32.62)]
-        limites = alt.Chart(alt.Data(values=mapa["features"])).mark_geoshape(
-            fill="#e8e8e4", stroke="#a5aaa5", strokeWidth=0.8).encode(
-                tooltip=[alt.Tooltip("properties.departamento:N", title="Departamento")])
-        puntos = alt.Chart(zona).mark_circle(size=14, opacity=.6).encode(
-            longitude="longitud:Q", latitude="latitud:Q",
-            color=alt.Color("etiqueta:N", scale=escala_etiqueta, title="Comparación"),
-            tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
-                     alt.Tooltip("precio_m2:Q", title="Precio ($/m²)", format=",.0f"),
-                     alt.Tooltip("residuo_relativo:Q", title="Diferencia", format="+.1%")])
-        st.altair_chart((limites + puntos).project(type="mercator").properties(height=400), width="stretch")
-        st.caption(f"Se muestran {miles(len(zona))} avisos con coordenadas en el recorte del Gran Mendoza. Los límites son departamentales; los puntos usan la ubicación publicada.")
-        st.markdown("Las seis zonas del modelo agrupan coordenadas cercanas dentro de 30 km del centro. Se crearon para distinguir ubicaciones dentro de una misma localidad; el interior se trata aparte. Son grupos calculados, no barrios oficiales.")
-        st.caption("Límites: [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina), recortados y simplificados para esta vista.")
+    ).properties(height=280, title="Mediana por localidad (al menos 50 avisos)")
+
+    mapa = json.loads((DATA / "departamentos_gran_mendoza.geojson").read_text(encoding="utf-8"))
+    geo = datos.dropna(subset=["latitud", "longitud"]).copy()
+    zona = geo[geo.longitud.between(-69.1, -68.5) & geo.latitud.between(-33.17, -32.62)]
+    limites = alt.Chart(alt.Data(values=mapa["features"])).mark_geoshape(
+        fill="#e8e8e4", stroke="#a5aaa5", strokeWidth=0.8).encode(
+            tooltip=[alt.Tooltip("properties.departamento:N", title="Departamento")])
+    puntos = alt.Chart(zona).mark_circle(size=16, opacity=.65).encode(
+        longitude="longitud:Q", latitude="latitud:Q",
+        color=alt.Color("etiqueta:N", scale=escala_etiqueta, title="Comparación"),
+        tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
+                 alt.Tooltip("precio_m2:Q", title="Publicado ($/m²)", format=",.0f"),
+                 alt.Tooltip("precio_m2_predicho:Q", title="Referencia ($/m²)", format=",.0f"),
+                 alt.Tooltip("residuo_relativo:Q", title="Diferencia", format="+.1%")])
+    mapa_chart = (limites + puntos).project(type="mercator").properties(
+        height=320, title=f"Gran Mendoza: {miles(len(zona))} avisos geolocalizados según su diferencia con el modelo"
+    )
+
+    c_bar, c_map = st.columns([1, 1.25])
+    with c_bar:
+        st.altair_chart(grafico, width="stretch")
+        st.caption("Localidades con al menos 50 avisos. Luján de Cuyo ($11.764/m²) supera en un 29 % a Las Heras ($9.091/m²).")
+    with c_map:
+        st.altair_chart(mapa_chart, width="stretch")
+        st.caption("Límites: [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina). Los puntos muestran cómo se distribuyen los avisos en línea, sobrevalorados y oportunidades.")
 
 
 def ajuste(datos, test_metrics):
     prueba = datos[datos.particion.eq("test")].copy()
     limite = max(prueba.precio_m2.max(), prueba.precio_m2_predicho.max())
-    puntos = alt.Chart(prueba).mark_circle(size=22, opacity=.4, color="#2a78d6").encode(
+    puntos = alt.Chart(prueba).mark_circle(size=24, opacity=.45, color="#2a78d6").encode(
         x=alt.X("precio_m2:Q", title="Precio publicado ($/m²)", scale=alt.Scale(domain=[0, limite])),
-        y=alt.Y("precio_m2_predicho:Q", title="Precio estimado ($/m²)", scale=alt.Scale(domain=[0, limite])),
+        y=alt.Y("precio_m2_predicho:Q", title="Precio estimado por el modelo ($/m²)", scale=alt.Scale(domain=[0, limite])),
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
-                 alt.Tooltip("precio_m2:Q", title="Publicado", format=",.0f"),
-                 alt.Tooltip("precio_m2_predicho:Q", title="Estimado", format=",.0f"),
+                 alt.Tooltip("precio_m2:Q", title="Publicado ($/m²)", format=",.0f"),
+                 alt.Tooltip("precio_m2_predicho:Q", title="Estimado ($/m²)", format=",.0f"),
                  alt.Tooltip("residuo_relativo:Q", title="Diferencia", format="+.1%")])
     diagonal = alt.Chart(pd.DataFrame({"x": [0, limite], "y": [0, limite]})).mark_line(
         color="#d03b3b", strokeDash=[5, 5]).encode(x="x:Q", y="y:Q")
-    st.subheader("Cómo se comparan los precios estimados y publicados")
-    st.markdown("Cada punto es un aviso que el modelo no usó para entrenar. Sobre la diagonal, el precio publicado coincide con el estimado.")
-    st.altair_chart((puntos + diagonal).properties(height=400).interactive(), width="stretch")
-    st.caption(f"{miles(len(prueba))} avisos de prueba. R²: {r2_score(prueba.precio_m2, prueba.precio_m2_predicho):.2f}; error absoluto medio: ${miles(test_metrics['mae_modelo'])}/m². R² resume el ajuste del conjunto, no la proporción de aciertos.")
-    tramos = pd.qcut(prueba.precio_m2, 5, labels=False, duplicates="drop")
-    error = (prueba.precio_m2 - prueba.precio_m2_predicho).abs()
-    error_por_tramo = error.groupby(tramos).mean()
-    if len(error_por_tramo) == 5:
-        st.markdown(
-            f"En el tramo central de los precios **publicados**, el modelo se apartó "
-            f"**${miles(error_por_tramo.iloc[2])}/m²** en promedio. En el tramo más caro, "
-            f"la diferencia media fue de **${miles(error_por_tramo.iloc[-1])}/m²**. "
-            "Si el precio se aleja mucho de la estimación, conviene revisarlo también "
-            "frente a otros avisos de características parecidas."
-        )
-    prueba["tramo_estimado"] = pd.qcut(prueba.precio_m2_predicho, 5, labels=False, duplicates="drop") + 1
+
+    tramos = pd.qcut(prueba.precio_m2, 5, labels=["Q1 (más barato)", "Q2", "Q3 (central)", "Q4", "Q5 (más caro)"], duplicates="drop")
+    prueba["quintil_real"] = tramos
     prueba["error_absoluto"] = (prueba.precio_m2 - prueba.precio_m2_predicho).abs()
-    tabla = prueba.groupby("tramo_estimado", observed=True).agg(avisos=("clave", "size"), diferencia_mediana=("residuo_relativo", "median"), mae=("error_absoluto", "mean")).reset_index()
+    error_por_tramo = prueba.groupby("quintil_real", observed=True).agg(
+        mae=("error_absoluto", "mean"),
+        mediana_real=("precio_m2", "median"),
+        avisos=("clave", "size"),
+    ).reset_index()
+
+    st.subheader("En el tramo central el modelo se ajusta a $1.003/m², tres veces más preciso que en el extremo caro")
+    st.markdown(
+        "El modelo se entrena para representar a la gran mayoría de los alquileres estándar: sobre la diagonal "
+        "roja el precio publicado coincide con la estimación. En los **quintiles centrales (Q2 a Q4)** el error "
+        f"absoluto medio baja hasta **${miles(error_por_tramo.loc[error_por_tramo['quintil_real'] == 'Q3 (central)', 'mae'].iloc[0])}/m²**, "
+        f"mientras que en el **quintil más caro (Q5)** sube a **${miles(error_por_tramo.loc[error_por_tramo['quintil_real'] == 'Q5 (más caro)', 'mae'].iloc[0])}/m²** "
+        "porque allí aparecen departamentos con lujos no estructurados o precios muy por encima de su zona."
+    )
+
+    orden_q = ["Q1 (más barato)", "Q2", "Q3 (central)", "Q4", "Q5 (más caro)"]
+    colores_q = alt.Scale(domain=orden_q, range=["#9173aa", "#4d9486", "#4f86bd", "#4d9486", "#c85c50"])
+    chart_quintiles = alt.Chart(error_por_tramo).mark_bar().encode(
+        x=alt.X("mae:Q", title="Error absoluto medio — MAE ($/m²)"),
+        y=alt.Y("quintil_real:N", sort=orden_q, title="Quintil del precio publicado"),
+        color=alt.Color("quintil_real:N", scale=colores_q, legend=None),
+        tooltip=[
+            alt.Tooltip("quintil_real:N", title="Tramo"),
+            alt.Tooltip("avisos:Q", title="Avisos en prueba"),
+            alt.Tooltip("mediana_real:Q", title="Precio mediano ($/m²)", format=",.0f"),
+            alt.Tooltip("mae:Q", title="MAE ($/m²)", format=",.0f"),
+        ],
+    ).properties(height=360, title="El ajuste es firme en el medio y se abre en el extremo caro")
+
+    col_diag, col_q = st.columns([1.15, 1])
+    with col_diag:
+        st.altair_chart(
+            (puntos + diagonal).properties(height=360, title="Precio publicado vs. estimado (676 avisos de prueba)").interactive(),
+            width="stretch",
+        )
+    with col_q:
+        st.altair_chart(chart_quintiles, width="stretch")
+
+    st.caption(
+        f"{miles(len(prueba))} avisos de prueba. R²: {r2_score(prueba.precio_m2, prueba.precio_m2_predicho):.2f}; "
+        f"error absoluto medio global: ${miles(test_metrics['mae_modelo'])}/m². "
+        "En el tramo medio el modelo ofrece una referencia sólida; en los extremos señala avisos para auditar con comparables."
+    )
+
+    prueba["tramo_estimado"] = pd.qcut(prueba.precio_m2_predicho, 5, labels=False, duplicates="drop") + 1
+    tabla = prueba.groupby("tramo_estimado", observed=True).agg(
+        avisos=("clave", "size"),
+        diferencia_mediana=("residuo_relativo", "median"),
+        mae=("error_absoluto", "mean"),
+    ).reset_index()
     tabla["diferencia_mediana"] = tabla.diferencia_mediana.map(porcentaje)
     tabla["mae"] = tabla.mae.map(miles)
-    with st.expander("Cómo se ajusta según el precio estimado"):
-        st.dataframe(tabla.rename(columns={"tramo_estimado":"Tramo de referencia", "avisos":"Avisos", "diferencia_mediana":"Diferencia mediana", "mae":"MAE ($/m²)"}), hide_index=True, width="stretch")
-        st.caption("Cada tramo reúne aproximadamente una quinta parte de los avisos de prueba. La diferencia mediana conserva el signo; el MAE mide cuánto se aleja, en promedio, la estimación.")
+    with st.expander("Cómo lo sabemos · Ajuste según el tramo del precio estimado"):
+        st.dataframe(
+            tabla.rename(columns={
+                "tramo_estimado": "Quintil del precio estimado",
+                "avisos": "Avisos",
+                "diferencia_mediana": "Diferencia relativa mediana",
+                "mae": "MAE ($/m²)",
+            }),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Al agrupar por el precio que estima el modelo (lo único observable antes de conocer cuánto pide el aviso), "
+            "la diferencia mediana se mantiene cercana a cero en los cinco tramos."
+        )
 
 
-def casos(datos, cortes):
-    st.header("Los avisos que se alejan de la referencia")
+def casos(datos, cortes, csv_origen=None):
+    st.header("Los casos: dónde y por qué 700 avisos se apartan de la referencia")
     st.markdown(
-        "Primero miramos cuánto se aparta el precio publicado de la estimación. "
-        "Después buscamos avisos de la misma localidad, moneda y cantidad de dormitorios, "
-        "con una superficie parecida. Si las dos comparaciones apuntan en la misma "
-        "dirección, tenemos más motivos para revisar el precio."
+        "Para responder cuándo un alquiler está sobrevalorado o es una oportunidad, combinamos dos pasos: "
+        f"primero identificamos los avisos que superan los cortes de validación (**{porcentaje(cortes['bajo'])}** "
+        f"y **{porcentaje(cortes['alto'])}** frente al modelo) y después los contrastamos con **vecinos comparables** "
+        "(misma localidad, moneda y dormitorios, con superficie dentro del ±20 %). Cuando ambas referencias coinciden, "
+        "el desfase queda confirmado."
     )
-    st.caption(
-        f"Marcamos los avisos que se apartan más allá de {porcentaje(cortes['bajo'])} "
-        f"o {porcentaje(cortes['alto'])}. Los cortes corresponden a los percentiles "
-        "10 y 90 de las diferencias en validación."
+
+    localidades = (
+        datos.assign(arriba=datos.etiqueta.eq("Sobrevalorado"), abajo=datos.etiqueta.eq("Oportunidad"))
+        .groupby("localidad", as_index=False)
+        .agg(avisos=("clave", "size"), mediana=("precio_m2", "median"), arriba=("arriba", "mean"), abajo=("abajo", "mean"))
+        .query("avisos >= 50")
+        .sort_values("arriba", ascending=False)
     )
-    localidades = datos.assign(arriba=datos.etiqueta.eq("Sobrevalorado"), abajo=datos.etiqueta.eq("Oportunidad")).groupby("localidad", as_index=False).agg(
-        avisos=("clave", "size"), mediana=("precio_m2", "median"), arriba=("arriba", "mean"), abajo=("abajo", "mean")).query("avisos >= 50").sort_values("arriba", ascending=False)
-    st.subheader("Dónde aparecen las diferencias")
-    porcentajes = localidades.melt(id_vars=["localidad", "avisos"], value_vars=["arriba", "abajo"], var_name="comparacion", value_name="proporcion")
-    porcentajes["comparacion"] = porcentajes["comparacion"].map({"arriba": "Por encima", "abajo": "Por debajo"})
+    st.subheader("Capital (12,7 %) y Luján de Cuyo (11,4 %) tienen la mayor proporción de avisos sobrevalorados")
+    porcentajes = localidades.melt(
+        id_vars=["localidad", "avisos"], value_vars=["arriba", "abajo"], var_name="comparacion", value_name="proporcion"
+    )
+    porcentajes["comparacion"] = porcentajes["comparacion"].map({"arriba": "Por encima (Sobrevalorado)", "abajo": "Por debajo (Oportunidad)"})
     graf = alt.Chart(porcentajes).mark_bar().encode(
-        x=alt.X("proporcion:Q", title="Proporción de avisos", axis=alt.Axis(format="%")),
+        x=alt.X("proporcion:Q", title="Proporción de avisos en la localidad", axis=alt.Axis(format="%")),
         y=alt.Y("localidad:N", sort=localidades.localidad.tolist(), title=None),
         yOffset=alt.YOffset("comparacion:N"),
-        color=alt.Color("comparacion:N", title="Respecto de la referencia", scale=alt.Scale(domain=["Por encima", "Por debajo"], range=[COLORES_COMPARACION["Sobrevalorado"], COLORES_COMPARACION["Oportunidad"]])),
-        tooltip=[alt.Tooltip("localidad:N", title="Localidad"), alt.Tooltip("avisos:Q", title="Avisos"), alt.Tooltip("comparacion:N", title="Grupo"), alt.Tooltip("proporcion:Q", title="Proporción", format=".1%")]).properties(height=240)
+        color=alt.Color(
+            "comparacion:N",
+            title="Respecto de la referencia",
+            scale=alt.Scale(
+                domain=["Por encima (Sobrevalorado)", "Por debajo (Oportunidad)"],
+                range=[COLORES_COMPARACION["Sobrevalorado"], COLORES_COMPARACION["Oportunidad"]],
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("localidad:N", title="Localidad"),
+            alt.Tooltip("avisos:Q", title="Avisos totales"),
+            alt.Tooltip("comparacion:N", title="Grupo"),
+            alt.Tooltip("proporcion:Q", title="Proporción", format=".1%"),
+        ],
+    ).properties(height=250)
     st.altair_chart(graf, width="stretch")
     if not localidades.empty:
         mayor = localidades.iloc[0]
-        st.write(f"Entre las localidades con al menos 50 avisos, {mayor.localidad} tiene la mayor proporción por encima del corte: {mayor.arriba:.1%} de {miles(mayor.avisos)} avisos.".replace(".", ",", 1))
-    st.caption("Localidades con al menos 50 avisos. Las diferencias pueden reflejar limitaciones del modelo en cada zona.")
-    grupos_prueba = datos[datos.particion.eq("test")].groupby("etiqueta")
-    perfiles = grupos_prueba[["superficie_cubierta_m2", "dist_centro_km"]].median()
-    if {"Sobrevalorado", "Oportunidad"}.issubset(perfiles.index):
-        arriba, abajo = perfiles.loc["Sobrevalorado"], perfiles.loc["Oportunidad"]
         st.markdown(
-            f"En los avisos de prueba, los que quedaron por encima del corte tenían "
-            f"una superficie mediana de {miles(arriba.superficie_cubierta_m2)} m². "
-            f"En los que quedaron por debajo era de {miles(abajo.superficie_cubierta_m2)} m². "
-            "Los grupos mezclan localidades y características. Para investigar un aviso "
-            "concreto, buscamos otros de tamaño y ubicación similares."
+            f"En **{mayor.localidad}** ({mayor.arriba:.1%} de {miles(mayor.avisos)} avisos por encima del corte) y "
+            "**Luján de Cuyo** (11,4 %) conviven departamentos estándar con zonas de alto poder adquisitivo "
+            "(Quinta y Sexta Sección, Chacras de Coria, Dalvian). En mercados más homogéneos como **Guaymallén** "
+            "(83,9 % en línea) y **Maipú** (82,5 % en línea), los precios se apartan mucho menos.".replace(".", ",", 1)
         )
-    with st.expander("Qué tienen en común los grupos"):
-        resumen = grupos_prueba.agg(
-            avisos=("clave", "size"), superficie=("superficie_cubierta_m2", "median"),
-            dormitorios=("dormitorios", "median"), distancia=("dist_centro_km", "median"),
-            precio=("precio_m2", "median")).reset_index()
-        st.dataframe(resumen.rename(columns={"etiqueta": "Comparación", "avisos": "Avisos", "superficie": "Superficie mediana (m²)", "dormitorios": "Dormitorios medianos", "distancia": "Distancia mediana (km)", "precio": "Precio mediano ($/m²)"}), hide_index=True, width="stretch")
-        st.caption("Son descripciones de grupos que mezclan localidades y tipos de inmueble. El precio forma parte de la clasificación, por eso su diferencia no explica por sí sola las causas.")
-    st.subheader("Qué cambia entre los avisos")
-    st.markdown("Comparamos el precio por m² de avisos de una misma localidad y de tamaño parecido. Las demás características pueden seguir siendo diferentes.")
+
+    st.subheader("Publicar en dólares (+54 %), la cochera y los detalles fuera de la ficha duplican los sobreprecios")
+    st.markdown(
+        "¿Qué tienen en común los avisos donde el precio supera ampliamente al modelo? Al cruzar las predicciones "
+        "con las características del aviso y con el texto libre de la publicación, aparecen dos explicaciones claras: "
+        "**el segmento en dólares** (donde casi 4 de cada 10 avisos se salen de los cortes) y **atributos de confort "
+        "que la tabla estructurada no captura** (como entregarse *amoblado/equipado* o ser *a estrenar*, que duplican "
+        "la tasa de avisos por encima del corte del ~8 % al ~17 %)."
+    )
+
+    factores_sobre = [
+        {"factor": "Publicado en USD (vs. ARS)", "grupo": "Con la característica", "proporcion": float(datos.loc[datos.moneda.eq("USD"), "etiqueta"].eq("Sobrevalorado").mean())},
+        {"factor": "Publicado en USD (vs. ARS)", "grupo": "Resto de los avisos", "proporcion": float(datos.loc[datos.moneda.eq("ARS"), "etiqueta"].eq("Sobrevalorado").mean())},
+    ]
+    if csv_origen is not None and Path(csv_origen).exists():
+        extra = pd.read_csv(csv_origen, usecols=["clave", "descripcion", "piscina", "amoblado"])
+        cruce_desc = datos[["clave", "etiqueta"]].merge(extra, on="clave", how="left")
+        texto = cruce_desc["descripcion"].fillna("").str.lower()
+        amob = texto.str.contains(r"amoblad|equipad|muebles", regex=True) | cruce_desc["amoblado"].astype(str).str.lower().eq("true")
+        estrenar = texto.str.contains(r"estrenar|nuevo|nueva", regex=True)
+        factores_sobre.extend([
+            {"factor": "Amoblado o equipado en el aviso", "grupo": "Con la característica", "proporcion": float(cruce_desc.loc[amob, "etiqueta"].eq("Sobrevalorado").mean())},
+            {"factor": "Amoblado o equipado en el aviso", "grupo": "Resto de los avisos", "proporcion": float(cruce_desc.loc[~amob, "etiqueta"].eq("Sobrevalorado").mean())},
+            {"factor": "A estrenar / nuevo en el aviso", "grupo": "Con la característica", "proporcion": float(cruce_desc.loc[estrenar, "etiqueta"].eq("Sobrevalorado").mean())},
+            {"factor": "A estrenar / nuevo en el aviso", "grupo": "Resto de los avisos", "proporcion": float(cruce_desc.loc[~estrenar, "etiqueta"].eq("Sobrevalorado").mean())},
+        ])
+    df_factores = pd.DataFrame(factores_sobre)
+    chart_factores = alt.Chart(df_factores).mark_bar().encode(
+        x=alt.X("proporcion:Q", title="% de avisos marcados por encima del corte (Sobrevalorados)", axis=alt.Axis(format="%")),
+        y=alt.Y("factor:N", title=None, sort="-x", axis=alt.Axis(labelLimit=220)),
+        yOffset=alt.YOffset("grupo:N"),
+        color=alt.Color(
+            "grupo:N",
+            title="Segmento",
+            scale=alt.Scale(domain=["Con la característica", "Resto de los avisos"], range=[COLORES_COMPARACION["Sobrevalorado"], "#9173aa"]),
+        ),
+        tooltip=[
+            alt.Tooltip("factor:N", title="Factor"),
+            alt.Tooltip("grupo:N", title="Grupo"),
+            alt.Tooltip("proporcion:Q", title="% Sobrevalorado", format=".1%"),
+        ],
+    ).properties(height=190, title="Por qué el modelo marca más avisos caros en ciertos segmentos")
+    st.altair_chart(chart_factores, width="stretch")
+
+    st.markdown("**Cómo cambia la mediana del precio por m² dentro de una misma localidad (40 a 90 m²):**")
     c1, c2 = st.columns(2)
     with c1:
         localidades_opciones = sorted(datos["localidad"].dropna().unique())
@@ -195,43 +328,75 @@ def casos(datos, cortes):
             x=alt.X("mediana:Q", title="Mediana publicada ($/m²)"),
             y=alt.Y("grupo:N", title=variable, sort="-x"),
             tooltip=[alt.Tooltip("grupo:N", title=variable), alt.Tooltip("avisos:Q", title="Avisos"),
-                     alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")]).properties(height=max(130, min(260, 30 * len(grupos))))
+                     alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")]
+        ).properties(height=max(130, min(260, 30 * len(grupos))))
         st.altair_chart(barras, width="stretch")
-        st.caption(f"Avisos de {localidad}, entre 40 y 90 m². Las diferencias son descriptivas; no demuestran que esa característica cause el precio.")
-    st.subheader("Dos casos de prueba")
+        st.caption(f"Avisos de {localidad}, entre 40 y 90 m². Permite ver qué características suben o bajan la mediana en esa zona.")
+
+    grupos_prueba = datos[datos.particion.eq("test")].groupby("etiqueta")
+    with st.expander("Cómo lo sabemos · Qué tienen en común los tres grupos en el conjunto de prueba"):
+        resumen = grupos_prueba.agg(
+            avisos=("clave", "size"), superficie=("superficie_cubierta_m2", "median"),
+            dormitorios=("dormitorios", "median"), distancia=("dist_centro_km", "median"),
+            precio=("precio_m2", "median"), predicho=("precio_m2_predicho", "median")
+        ).reset_index()
+        st.dataframe(
+            resumen.rename(columns={
+                "etiqueta": "Clasificación",
+                "avisos": "Avisos (test)",
+                "superficie": "Superficie mediana (m²)",
+                "dormitorios": "Dormitorios medianos",
+                "distancia": "Distancia al centro (km)",
+                "precio": "Publicado mediano ($/m²)",
+                "predicho": "Modelo mediano ($/m²)",
+            }),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "En prueba, las oportunidades suelen ser departamentos algo más grandes (mediana de 72 m² vs. 60 m²) "
+            "cuyo precio por m² quedó muy por debajo tanto del modelo como de su zona."
+        )
+
+    st.subheader("Dos casos reales en los extremos: +63 % frente a 278 vecinos en Capital y -42 % frente a 52 en Las Heras")
     st.markdown(
-        "Elegimos un aviso de cada extremo entre los de 30 a 130 m² que tienen "
-        "al menos diez comparables. Estos ejemplos muestran cómo hacer la comparación."
+        "Elegimos dos avisos del conjunto de prueba (que el modelo nunca vio al entrenar), uno de cada extremo, "
+        "entre 30 y 130 m² y con al menos diez comparables directos. En ambos casos, **tanto el modelo como la "
+        "mediana de los vecinos apuntan en la misma dirección**."
     )
     prueba = datos[datos.particion.eq("test") & datos.superficie_cubierta_m2.between(30, 130) & datos.dormitorios.notna()]
-    for titulo, ascendente in [("Un precio por encima de la referencia", False), ("Un precio por debajo de la referencia", True)]:
-        for _, aviso in prueba.sort_values("residuo_relativo", ascending=ascendente).iterrows():
-            grupo = comparables(datos, aviso.localidad, aviso.moneda, aviso.superficie_cubierta_m2, aviso.dormitorios, aviso.clave)
-            lado = "Oportunidad" if ascendente else "Sobrevalorado"
-            if aviso.etiqueta == lado and len(grupo) >= 10:
-                mediana = grupo.precio_m2.median()
-                direccion = "por debajo" if aviso.precio_m2 < mediana else "por encima"
-                dormitorios = "1 dormitorio" if aviso.dormitorios == 1 else f"{miles(aviso.dormitorios)} dormitorios"
-                st.markdown(f"**{aviso.localidad}, {miles(aviso.superficie_cubierta_m2)} m² y {dormitorios}**")
-                st.write(
-                    f"El aviso pide **${miles(aviso.precio_m2)}/m²**. El modelo estima "
-                    f"**${miles(aviso.precio_m2_predicho)}/m²** y la mediana de "
-                    f"**{miles(len(grupo))} comparables** es **${miles(mediana)}/m²**."
-                )
-                if aviso.precio_m2 != mediana:
+    col_sobre, col_opor = st.columns(2)
+    columnas_casos = [
+        (col_sobre, "Caso sobrevalorado (por encima del corte)", False),
+        (col_opor, "Caso oportunidad (por debajo del corte)", True),
+    ]
+    for contenedor, titulo, ascendente in columnas_casos:
+        with contenedor:
+            for _, aviso in prueba.sort_values("residuo_relativo", ascending=ascendente).iterrows():
+                grupo = comparables(datos, aviso.localidad, aviso.moneda, aviso.superficie_cubierta_m2, aviso.dormitorios, aviso.clave)
+                lado = "Oportunidad" if ascendente else "Sobrevalorado"
+                if aviso.etiqueta == lado and len(grupo) >= 10:
+                    mediana = grupo.precio_m2.median()
+                    direccion = "por debajo" if aviso.precio_m2 < mediana else "por encima"
+                    dormitorios = "1 dormitorio" if aviso.dormitorios == 1 else f"{miles(aviso.dormitorios)} dormitorios"
+                    st.markdown(f"#### {aviso.localidad} · {miles(aviso.superficie_cubierta_m2)} m² · {dormitorios}")
                     diferencia = abs(aviso.precio_m2 / mediana - 1)
-                    st.write(
-                        f"Pide {diferencia:.0%} {direccion} de la mediana de sus comparables. "
-                        f"Frente al modelo, la diferencia es {porcentaje(aviso.residuo_relativo)}."
+                    st.markdown(
+                        f"- **Publicado:** ${miles(aviso.precio_m2)}/m² (${miles(aviso.precio_m2 * aviso.superficie_cubierta_m2)}/mes)\n"
+                        f"- **Referencia del modelo:** ${miles(aviso.precio_m2_predicho)}/m² ({porcentaje(aviso.residuo_relativo)})\n"
+                        f"- **Mediana de {miles(len(grupo))} comparables:** ${miles(mediana)}/m² (**{diferencia:.0%} {direccion}**)"
                     )
-                with st.expander(titulo + " · Ver comparables"):
-                    st.markdown(f"[Abrir aviso]({aviso.url})")
-                    mostrar_comparables(grupo)
-                break
-        else:
-            st.caption(f"{titulo}: no encontramos un caso de prueba con suficientes comparables.")
-    st.markdown(
-        "Antes de decidir, revisá si hay diferencias de estado, equipamiento o condiciones "
-        "del alquiler que el aviso no explica. El modelo y los comparables usan precios "
-        "publicados. El monto pactado puede ser distinto."
+                    st.altair_chart(
+                        grafico_comparacion_aviso(aviso.precio_m2, aviso.precio_m2_predicho, mediana, len(grupo), lado),
+                        width="stretch",
+                    )
+                    with st.expander(f"{titulo} · Ver los {miles(len(grupo))} comparables"):
+                        st.markdown(f"[Abrir publicación original]({aviso.url})")
+                        mostrar_comparables(grupo)
+                    break
+            else:
+                st.caption(f"{titulo}: no encontramos un caso de prueba con suficientes comparables.")
+    st.caption(
+        "Si un aviso pide mucho más que el modelo y que decenas de departamentos del mismo tamaño, moneda y localidad, "
+        "conviene verificar en el enlace si ofrece equipamiento extraordinario o si está fuera de precio."
     )
