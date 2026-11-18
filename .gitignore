@@ -1,3 +1,8 @@
+# basura del sistema operativo: el Finder de macOS deja un .DS_Store en cada
+# carpeta que se abre (preferencias de vista), Windows deja Thumbs.db
+.DS_Store
+Thumbs.db
+
 # entorno
 .env
 __pycache__/
