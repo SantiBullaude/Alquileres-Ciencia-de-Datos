@@ -41,7 +41,11 @@ from paleta import (
     COLORES_COMPARACION,
     COLORES_MODELO,
     COLORES_OTROS,
+    COLOR_FOCO,
+    COLOR_FOCO_2,
+    GRIS_APAGADO,
     escala,
+    resaltar,
 )
 
 DATA = Path(__file__).resolve().parent / "data"
@@ -101,6 +105,25 @@ def coma(x, decimales=1, signo=False):
     """Coma decimal (es-AR) para un numero suelto, sin afectar el resto del texto."""
     spec = f"{{:{'+' if signo else ''}.{decimales}%}}"
     return spec.format(x).replace(".", ",")
+
+
+def sector_con_u(curvas, sectores, anillos, anillo_minimo="4-7 km"):
+    """Tramo de superficie cuya curva toca el piso en `anillo_minimo` y mas repunta despues.
+
+    Lo elegimos con los datos para no resaltar a mano una serie que manana
+    podria no ser la que mejor muestra la U.
+    """
+    mejor, mejor_repunte = None, 0.0
+    for sector in sectores:
+        serie = (curvas[curvas["sector_m2"].eq(sector)].set_index("anillo_km")
+                 .reindex(anillos)["mediana"].dropna())
+        if len(serie) < 3 or anillo_minimo not in serie.index or serie.idxmin() != anillo_minimo:
+            continue
+        desde = list(serie.index).index(anillo_minimo)
+        repunte = serie.iloc[desde:].max() / serie.iloc[desde] - 1
+        if repunte > mejor_repunte:
+            mejor, mejor_repunte = sector, float(repunte)
+    return mejor, mejor_repunte
 
 
 def dec(x, decimales=2):
@@ -206,7 +229,8 @@ def los_datos():
     grafico = alt.Chart(cantidades).mark_bar().encode(
         x=alt.X("avisos:Q", title="Cantidad de avisos"),
         y=alt.Y("localidad:N", title=None, sort="-x", axis=alt.Axis(labelLimit=150)),
-        color=alt.Color("localidad:N", scale=escala(COLORES_LOCALIDAD), legend=None),
+        color=alt.Color("localidad:N", legend=None,
+                        scale=resaltar(cantidades.localidad, principales.localidad.tolist())),
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"), alt.Tooltip("avisos:Q", title="Avisos")],
     ).properties(height=300)
     st.altair_chart(grafico, width="stretch")
@@ -314,9 +338,9 @@ def lo_que_encontramos():
         f"(Spearman **{dec(correlacion_distancia, 3)}**). "
         "Pero al separar por **tramos de superficie** aparecen dos efectos que la nube global escondía: en los "
         f"**departamentos chicos (hasta 40 m²)** alejarse del centro sí baja el precio "
-        f"(**Spearman {dec(sp_chicos, 2)}**), y en casi "
-        "todos los tamaños la curva **baja hasta los 4–7 km y vuelve a subir después de los 7 km**, donde están los "
-        "barrios residenciales caros de Luján de Cuyo y el oeste de Godoy Cruz (Chacras, Dalvian, Palmares)."
+        f"(**Spearman {dec(sp_chicos, 2)}**), y en los tramos medianos la curva **baja hasta los 4–7 km y "
+        "vuelve a subir después**, donde están los barrios residenciales caros de Luján de Cuyo y el oeste de "
+        "Godoy Cruz (Chacras, Dalvian, Palmares)."
     )
 
     grafico_distancia = alt.Chart(distancia).mark_circle(size=14, opacity=.3, color=COLOR_ARS).encode(
@@ -342,6 +366,10 @@ def lo_que_encontramos():
         .reset_index()
         .query("avisos >= 10")
     )
+    tramo_u, repunte_u = sector_con_u(curvas_h3, orden_sectores, orden_anillos)
+    focos_u = {orden_sectores[0]: COLOR_FOCO}
+    if tramo_u:
+        focos_u[tramo_u] = COLOR_FOCO_2
     grafico_u = alt.Chart(curvas_h3).mark_line(point=True, strokeWidth=2.5).encode(
         x=alt.X("anillo_km:O", sort=orden_anillos, title="Anillo de distancia al centro", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("mediana:Q", title="Mediana de precio ($/m²)", scale=alt.Scale(zero=False)),
@@ -349,15 +377,18 @@ def lo_que_encontramos():
             "sector_m2:O",
             sort=orden_sectores,
             title="Superficie",
-            scale=alt.Scale(domain=orden_sectores, range=COLORES_OTROS[:5]),
+            scale=resaltar(orden_sectores, focos_u),
         ),
+        opacity=alt.condition(alt.FieldOneOfPredicate(field="sector_m2", oneOf=list(focos_u)),
+                              alt.value(1), alt.value(0.45)),
         tooltip=[
             alt.Tooltip("sector_m2:O", title="Superficie"),
             alt.Tooltip("anillo_km:O", title="Distancia"),
             alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f"),
             alt.Tooltip("avisos:Q", title="Avisos en celda"),
         ],
-    ).properties(height=300, title="Por tramo de superficie: caída en chicos y curva en U")
+    ).properties(height=300, title=(f"La caída en los chicos y la U de {tramo_u}" if tramo_u
+                                    else "Por tramo de superficie: caída en chicos y curva en U"))
 
     c_d1, c_d2 = st.columns(2)
     with c_d1:
@@ -471,10 +502,13 @@ def el_modelo():
     esc = pd.DataFrame(metrics["escalera_pisos"])
     orden_esc = esc["escalon"].tolist()
     esc["grupo_color"] = esc["escalon"].map(lambda v: v.split(":", 1)[0] if not v.startswith("Modelo:") else "HistGradientBoosting")
+    # el titulo compara el elegido contra el mejor piso: solo esos dos en color
+    foco_modelos = {"HistGradientBoosting": COLOR_FOCO, "P3": COLOR_FOCO_2}
     chart_esc = alt.Chart(esc).mark_bar().encode(
         x=alt.X("test_mae:Q", title="MAE en test ($/m²) — menos es mejor"),
         y=alt.Y("escalon:N", sort=orden_esc, title=None),
-        color=alt.Color("grupo_color:N", scale=escala(COLORES_MODELO), legend=None),
+        color=alt.Color("grupo_color:N", legend=None,
+                        scale=resaltar(esc["grupo_color"].unique(), foco_modelos)),
         tooltip=[
             alt.Tooltip("escalon:N", title="Escalón"),
             alt.Tooltip("regla:N", title="Regla"),
@@ -496,10 +530,12 @@ def el_modelo():
     chart = alt.Chart(df_folds).mark_boxplot(size=22).encode(
         x=alt.X("mae:Q", title="MAE por fold ($/m²) — menos es mejor"),
         y=alt.Y("modelo:N", sort=orden, title=None),
-        color=alt.Color("grupo_color:N", scale=escala(COLORES_MODELO), legend=None),
+        color=alt.Color("grupo_color:N", legend=None,
+                        scale=resaltar(df_folds["grupo_color"].unique(), foco_modelos)),
     ).properties(height=300, title="15 folds agrupados por firma de inmueble, mismos folds para todos")
     st.altair_chart(chart, width="stretch")
-    st.caption("Cada color identifica el mismo modelo o regla en ambos gráficos.")
+    st.caption("En color, los dos que compara el título: el modelo elegido y el mejor piso de medianas. "
+               "Conservan su color en ambos gráficos; el resto queda en gris, a modo de contexto.")
 
     with st.expander("Cómo lo sabemos"):
         st.markdown(f"""
