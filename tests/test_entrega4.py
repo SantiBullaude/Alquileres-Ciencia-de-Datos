@@ -1,8 +1,10 @@
 """Recorridos de la app y selección de avisos comparables."""
+import json
 import sys
 import unittest
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
@@ -68,6 +70,40 @@ class AppEntrega4Test(unittest.TestCase):
         self.campo("radio", "La historia se lee en orden. Acá las preguntas las hacés vos.").set_value("Los casos").run()
         self.assertFalse(self.app.exception)
         self.assertEqual(self.app.session_state["navegacion"], "Los casos")
+
+    def test_el_cierre_responde_con_los_cortes_del_modelo(self):
+        """La seccion final existe, se puede navegar y repite el corte que calculo build_app."""
+        metrics = json.loads((RAIZ / "app" / "data" / "metrics.json").read_text(encoding="utf-8"))
+        corte = f"{metrics['cortes_residuo']['alto']:.1%}".replace(".", ",").replace("%", " %")
+        self.assertIn("La respuesta", [h.value for h in self.app.header])
+        cierres = [sh.value for sh in self.app.subheader if "sobrevalorado cuando pide" in sh.value]
+        self.assertEqual(len(cierres), 1)
+        self.assertIn(corte, cierres[0])
+        radio = self.campo("radio", "La historia se lee en orden. Acá las preguntas las hacés vos.")
+        radio.set_value("La respuesta").run()
+        self.assertFalse(self.app.exception)
+        self.assertEqual(self.app.session_state["navegacion"], "La respuesta")
+
+    def test_la_cochera_se_explica_donde_corresponde(self):
+        """El titular de sobreprecios no promete la cochera; el de medianas si la incluye."""
+        titulares = [sh.value for sh in self.app.subheader]
+        sobreprecios = next(t for t in titulares if "duplican los sobreprecios" in t)
+        self.assertNotIn("cochera", sobreprecios.lower())
+        self.assertTrue(any(t.startswith("Qué sube y qué baja el precio") for t in titulares))
+
+    def test_los_titulares_salen_de_los_datos(self):
+        """Las cifras de los titulares se recalculan: nada escrito a mano."""
+        datos = pd.read_parquet(RAIZ / "app" / "data" / "dataset_exploracion.parquet")
+        pesos = datos[datos.moneda.eq("ARS")].copy()
+        pesos["mensual"] = pesos.precio_m2 * pesos.superficie_cubierta_m2
+        pesos = pesos.dropna(subset=["superficie_cubierta_m2", "mensual"])
+        pendiente = np.polyfit(np.log10(pesos.superficie_cubierta_m2), np.log10(pesos.mensual), 1)[0]
+        crecimiento = f"{2 ** pendiente - 1:.0%}".replace("%", " %")
+        titulares = [sh.value for sh in self.app.subheader]
+        self.assertTrue(any(f"el precio crece un {crecimiento}" in t for t in titulares),
+                        f"ningun titular trae {crecimiento}: {titulares}")
+        fuera = int((~datos.etiqueta.eq("En linea")).sum())
+        self.assertIn(f"{fuera:,}".replace(",", "."), " ".join(h.value for h in self.app.header))
 
 if __name__ == "__main__":
     unittest.main()

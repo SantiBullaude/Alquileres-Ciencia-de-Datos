@@ -28,6 +28,10 @@ from analisis_entrega4 import (
     comparables,
     grafico_comparacion_aviso,
     mostrar_comparables,
+    nivel_de_precios,
+    nombre,
+    pct,
+    respuesta,
     ubicacion,
 )
 from paleta import (
@@ -99,6 +103,11 @@ def coma(x, decimales=1, signo=False):
     return spec.format(x).replace(".", ",")
 
 
+def dec(x, decimales=2):
+    """Numero decimal con coma (es-AR). coma() es para porcentajes; esto, para correlaciones."""
+    return f"{x:.{decimales}f}".replace(".", ",")
+
+
 @st.cache_resource
 def cargar_todo():
     with open(DATA / "metrics.json", encoding="utf-8") as f:
@@ -124,8 +133,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "Explora", "Proba el modelo"]
-ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "Explora": "explora", "Proba el modelo": "simulador"}
+SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "La respuesta", "Explora", "Proba el modelo"]
+ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "La respuesta": "respuesta", "Explora": "explora", "Proba el modelo": "simulador"}
 
 
 def ir_a_seccion():
@@ -159,11 +168,12 @@ def portada():
     )
     c1, c2, c3 = st.columns(3)
     c1.metric("En línea", miles(dentro))
-    c1.caption("Avisos dentro de los cortes de referencia (-20,2 % a +25,8 %).")
+    corte_bajo, corte_alto = metrics["cortes_residuo"]["bajo"], metrics["cortes_residuo"]["alto"]
+    c1.caption(f"Avisos dentro de los cortes de referencia ({pct(corte_bajo, 1)} a +{pct(corte_alto, 1)}).")
     c2.metric("Por encima (Sobrevalorados)", miles(alto))
-    c2.caption("Piden más de un 25,8 % por encima de la referencia del modelo.")
+    c2.caption(f"Piden más de un {pct(corte_alto, 1)} por encima de la referencia del modelo.")
     c3.metric("Por debajo (Oportunidades)", miles(bajo))
-    c3.caption("Piden más de un 20,2 % por debajo de la referencia del modelo.")
+    c3.caption(f"Piden más de un {pct(abs(corte_bajo), 1)} por debajo de la referencia del modelo.")
     st.caption(
         f"Medido sobre {miles(len(explo))} avisos de Inmoclick e InmoUP recogidos entre el "
         f"{metrics['dataset']['ventana_inicio']} y el {metrics['dataset']['ventana_fin']}."
@@ -175,9 +185,11 @@ def portada():
 # =============================================================================
 def los_datos():
     st.header("Los datos")
-    st.subheader("Tres localidades concentran el 79 % de los avisos publicados")
     cantidades = explo["localidad"].fillna("Sin localidad").value_counts().rename_axis("localidad").reset_index(name="avisos")
     principales = cantidades.head(3)
+    st.subheader(
+        f"Tres localidades concentran el {pct(principales.avisos.sum() / len(explo))} de los avisos publicados"
+    )
     localidades = ", ".join(principales.localidad.iloc[:-1]) + " y " + principales.localidad.iloc[-1]
     localidades = localidades.replace("Guaymallen", "Guaymallén")
     n_principales = principales.avisos.sum()
@@ -202,7 +214,8 @@ def los_datos():
     st.markdown(
         f"Después de aplicar las reglas de calidad quedaron **{miles(len(explo))}** de los "
         f"**{miles(metrics['dataset']['filas_totales'])}** avisos relevados ({miles(sin_coordenadas)} sin coordenadas "
-        "quedan fuera del mapa). Para comparar en una sola unidad, convertimos los 269 avisos en dólares a pesos."
+        f"quedan fuera del mapa). Para comparar en una sola unidad, convertimos los "
+        f"{metrics['dataset']['avisos_usd_convertidos']} avisos en dólares a pesos."
     )
 
     with st.expander("Cómo lo sabemos"):
@@ -255,14 +268,26 @@ imposibles y agrupamos posibles duplicados por firma de inmueble al separar entr
 # =============================================================================
 def lo_que_encontramos():
     st.header("Lo que encontramos")
-    st.subheader("El alquiler mensual sube menos que la superficie: al duplicar los m², el precio crece un 64 %")
-    st.markdown(
-        "Un departamento del doble de superficie no cuesta el doble por mes: la relación tiene rendimientos "
-        "decrecientes (pendiente log-log de **0,71**). Por eso el metro cuadrado de un monoambiente es más "
-        "caro que el de un piso grande, y cualquier comparación justa debe controlar primero los metros cuadrados."
-    )
+
+    nivel_de_precios(explo, metrics, ESCALA_MONEDA, escala(COLORES_PORTAL))
 
     datos_superficie = explo[explo["moneda"] == "ARS"].dropna(subset=["superficie_cubierta_m2", "precio_mensual_ars"])
+    # Una sola pendiente para el titular, el grafico y el "Como lo sabemos":
+    # la de los avisos en pesos que se grafican mas abajo.
+    superficie_log = np.log10(datos_superficie["superficie_cubierta_m2"])
+    precio_log = np.log10(datos_superficie["precio_mensual_ars"])
+    pendiente_log = float(np.polyfit(superficie_log, precio_log, 1)[0])
+    crecimiento_doble = 2 ** pendiente_log - 1
+    st.subheader(
+        f"El alquiler mensual sube menos que la superficie: al duplicar los m², el precio crece un "
+        f"{pct(crecimiento_doble)}"
+    )
+    st.markdown(
+        "Un departamento del doble de superficie no cuesta el doble por mes: la relación tiene rendimientos "
+        f"decrecientes (pendiente log-log de **{pendiente_log:.2f}**). Por eso el metro cuadrado de un "
+        "monoambiente es más caro que el de un piso grande, y cualquier comparación justa debe controlar "
+        "primero los metros cuadrados.".replace(".", ",", 1)
+    )
     base = alt.Chart(datos_superficie.sample(n=min(1500, len(datos_superficie)), random_state=42))
     lineal = base.mark_circle(size=14, opacity=0.3, color=COLOR_ARS).encode(
         x=alt.X("superficie_cubierta_m2:Q", title="Superficie cubierta (m²)"),
@@ -271,18 +296,25 @@ def lo_que_encontramos():
     log = base.mark_circle(size=14, opacity=0.3, color=COLOR_ARS).encode(
         x=alt.X("superficie_cubierta_m2:Q", scale=alt.Scale(type="log"), title="Superficie cubierta (m², log)"),
         y=alt.Y("precio_mensual_ars:Q", scale=alt.Scale(type="log"), title="Precio mensual ($, log)"),
-    ).properties(height=310, title="Escala log-log: la relación se endereza (pendiente 0,71)")
+    ).properties(height=310, title=f"Escala log-log: la relación se endereza (pendiente {pendiente_log:.2f})".replace(".", ",", 1))
     st.altair_chart(lineal | log, width="stretch")
     st.caption(f"Se muestran hasta 1.500 avisos en pesos de los {miles(len(datos_superficie))} incluidos en este análisis.")
 
     distancia = explo[(explo["moneda"] == "ARS") & explo["dist_centro_km"].between(0, 30)].dropna(subset=["dist_centro_km", "precio_m2"]).copy()
     correlacion_distancia = distancia["dist_centro_km"].corr(distancia["precio_m2"], method="spearman")
 
-    st.subheader("La distancia al centro engaña en global (-0,075), pero abarata los chicos y dibuja una U por Luján")
+    chicos_h3 = distancia[distancia["superficie_cubierta_m2"] <= 40]
+    sp_chicos = chicos_h3["dist_centro_km"].corr(chicos_h3["precio_m2"], method="spearman")
+    st.subheader(
+        f"La distancia al centro engaña en global ({dec(correlacion_distancia, 3)}), pero abarata los chicos "
+        "y dibuja una U por Luján"
+    )
     st.markdown(
-        "Si miramos todos los avisos juntos, la distancia a Plaza Independencia parece no importar (Spearman **-0,075**). "
+        f"Si miramos todos los avisos juntos, la distancia a Plaza Independencia parece no importar "
+        f"(Spearman **{dec(correlacion_distancia, 3)}**). "
         "Pero al separar por **tramos de superficie** aparecen dos efectos que la nube global escondía: en los "
-        "**departamentos chicos (hasta 40 m²)** alejarse del centro sí baja el precio (**Spearman -0,27**), y en casi "
+        f"**departamentos chicos (hasta 40 m²)** alejarse del centro sí baja el precio "
+        f"(**Spearman {dec(sp_chicos, 2)}**), y en casi "
         "todos los tamaños la curva **baja hasta los 4–7 km y vuelve a subir después de los 7 km**, donde están los "
         "barrios residenciales caros de Luján de Cuyo y el oeste de Godoy Cruz (Chacras, Dalvian, Palmares)."
     )
@@ -293,7 +325,7 @@ def lo_que_encontramos():
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
                  alt.Tooltip("dist_centro_km:Q", title="Distancia (km)", format=".1f"),
                  alt.Tooltip("precio_m2:Q", title="Precio ($/m²)", format=",.0f")]
-    ).properties(height=300, title="Vista global: parece plana (Spearman -0,075)").interactive()
+    ).properties(height=300, title=f"Vista global: parece plana (Spearman {dec(correlacion_distancia, 3)})").interactive()
 
     h3_df = explo[explo["dist_centro_km"].between(0, 30)].dropna(subset=["dist_centro_km", "precio_m2", "superficie_cubierta_m2"]).copy()
     orden_sectores = ["hasta 40 m²", "40-55 m²", "55-75 m²", "75-100 m²", "más de 100 m²"]
@@ -334,24 +366,24 @@ def lo_que_encontramos():
         st.altair_chart(grafico_u, width="stretch")
     st.caption(f"{miles(len(distancia))} avisos en pesos a hasta 30 km del centro. Correlación de Spearman: {correlacion_distancia:.3f}.")
 
-    ubicacion(explo, ESCALA_ETIQUETA)
+    aportes = {fila["columna"]: fila["aumento_mae"] for fila in metrics["importancia_permutacion"]}
+    ubicacion(explo, ESCALA_ETIQUETA, aportes.get("zona_geo"))
 
     with st.expander("Cómo lo sabemos"):
         superficie = datos_superficie["superficie_cubierta_m2"]
         precio = datos_superficie["precio_mensual_ars"]
         pearson = superficie.corr(precio)
-        superficie_log, precio_log = np.log10(superficie), np.log10(precio)
         correlacion_log = superficie_log.corr(precio_log)
-        pendiente_log = np.polyfit(superficie_log, precio_log, 1)[0]
-        chicos = h3_df[h3_df["superficie_cubierta_m2"] <= 40]
-        sp_chicos = chicos["dist_centro_km"].corr(chicos["precio_m2"], method="spearman")
         st.markdown(
             f"**H2 · Superficie y alquiler mensual (sostenida).** "
             f"En {miles(len(datos_superficie))} avisos en pesos, la correlación de Pearson sube de "
             f"**{pearson:.3f}** a **{correlacion_log:.3f}** al pasar ambos ejes a escala logarítmica (brecha Spearman-Pearson de "
             f"{metrics['hallazgos_eda']['h2_superficie_sostenida']['brecha_lineal']:.3f} a "
             f"{metrics['hallazgos_eda']['h2_superficie_sostenida']['brecha_log']:.3f}). "
-            f"La pendiente log-log es **{pendiente_log:.2f}**: duplicar los m² aumenta el alquiler un 64 %."
+            f"La pendiente log-log es **{dec(pendiente_log)}**: duplicar los m² aumenta el alquiler un "
+            f"{pct(crecimiento_doble)}. Sobre el conjunto de entrenamiento del modelo (que incluye los avisos "
+            f"en dólares convertidos) la pendiente es "
+            f"{dec(metrics['fuga_superficie']['pendiente_log_precio_vs_log_superficie'])}."
         )
         st.markdown(
             f"**H3 · Distancia al centro (refutada en global, confirmada en chicos tras controlar superficie).** "
@@ -360,11 +392,21 @@ def lo_que_encontramos():
             f"**hasta 40 m²** la correlación pasa a **{sp_chicos:.2f}** (zona amarilla) y las medianas por anillo dibujan "
             "una curva en U que el modelo de árboles aprovecha junto con `densidad_1km` y `zona_geo`."
         )
+        usd_m2 = explo.loc[explo["moneda"] == "USD", "precio_m2"]
+        ars_m2 = explo.loc[explo["moneda"] == "ARS", "precio_m2"]
+        # misma formula que notebooks/entrega3_modelado.ipynb
+        separacion = (usd_m2.mean() - ars_m2.mean()) / np.sqrt((ars_m2.var() + usd_m2.var()) / 2)
+        top_usd = explo.loc[explo["moneda"] == "USD", "localidad"].value_counts().head(2).index.tolist()
         st.markdown(
-            "**H1 · Moneda del aviso (los alquileres en dólares son un segmento un 54 % más caro por m²).** "
-            "Unificados a pesos con el dólar MEP ($1.540), los avisos publicados en USD tienen una mediana de "
-            "**$15.400/m²** frente a **$10.000/m²** en ARS (separación estandarizada de 0,84, zona verde): son unidades "
-            "más grandes (mediana de 85 m² vs. 60 m²) concentradas en Capital y Luján de Cuyo."
+            f"**H1 · Moneda del aviso (los alquileres en dólares son un segmento un "
+            f"{pct(usd_m2.median() / ars_m2.median() - 1)} más caro por m²).** "
+            f"Unificados a pesos con el dólar MEP (${miles(metrics['dataset']['tc_usd'])}), los avisos publicados "
+            f"en USD tienen una mediana de **${miles(usd_m2.median())}/m²** frente a "
+            f"**${miles(ars_m2.median())}/m²** en ARS (separación estandarizada de {dec(separacion)}, zona verde): "
+            f"son unidades más grandes (mediana de "
+            f"{miles(explo.loc[explo['moneda'] == 'USD', 'superficie_cubierta_m2'].median())} m² vs. "
+            f"{miles(explo.loc[explo['moneda'] == 'ARS', 'superficie_cubierta_m2'].median())} m²) concentradas "
+            f"en {nombre(top_usd[0])} y {nombre(top_usd[1])}."
         )
         por_moneda = explo.groupby("moneda", as_index=False).agg(avisos=("clave", "size"), mediana=("precio_m2", "median"))
         st.altair_chart(alt.Chart(por_moneda).mark_bar().encode(
@@ -377,12 +419,15 @@ def lo_que_encontramos():
         origen = Path(__file__).resolve().parent.parent / metrics["dataset"]["csv"]
         if origen.exists():
             ambientes = pd.read_csv(origen, usecols=["clave", "ambientes"])
-            cruces = explo[["clave", "dormitorios"]].merge(ambientes, on="clave", how="left", validate="one_to_one").dropna(subset=["ambientes", "dormitorios"])
+            unidos = explo[["clave", "dormitorios"]].merge(ambientes, on="clave", how="left", validate="one_to_one")
+            cruces = unidos.dropna(subset=["ambientes", "dormitorios"])
             pares = cruces.groupby(["ambientes", "dormitorios"], as_index=False).size()
             st.markdown(
                 f"**H4 · Ambientes y dormitorios.** En los {miles(len(cruces))} avisos que informan ambos campos "
-                "(Pearson 0,622, zona verde), `ambientes` falta en el 42 % de las filas (nulo dependiente del portal) "
-                "frente a 2,6 % en `dormitorios`, por lo que el modelo conserva `dormitorios`."
+                f"(Pearson {dec(cruces['ambientes'].corr(cruces['dormitorios']), 3)}, zona verde), `ambientes` "
+                f"falta en el {pct(unidos['ambientes'].isna().mean(), 1)} de las filas (nulo dependiente del "
+                f"portal) frente a {pct(unidos['dormitorios'].isna().mean(), 1)} en `dormitorios`, por lo que el "
+                "modelo conserva `dormitorios`."
             )
             st.altair_chart(alt.Chart(pares).mark_rect().encode(
                 x=alt.X("dormitorios:O", title="Dormitorios"), y=alt.Y("ambientes:O", title="Ambientes"),
@@ -390,18 +435,11 @@ def lo_que_encontramos():
                 tooltip=[alt.Tooltip("ambientes:O", title="Ambientes"), alt.Tooltip("dormitorios:O", title="Dormitorios"), alt.Tooltip("size:Q", title="Avisos")]
             ).properties(height=230), width="stretch")
 
-        st.markdown("**Comparación de precios entre portales (Inmoclick vs. InmoUP):**")
-        resumen_portal = explo.groupby("fuente", as_index=False).agg(
-            avisos=("precio_m2", "size"), mediana=("precio_m2", "median"))
-        grafico_portal = alt.Chart(resumen_portal).mark_bar().encode(
-            color=alt.Color("fuente:N", scale=escala(COLORES_PORTAL), legend=None),
-            x=alt.X("mediana:Q", title="Mediana del precio publicado ($/m²)"),
-            y=alt.Y("fuente:N", title="Portal", sort="-x"),
-            tooltip=[alt.Tooltip("fuente:N", title="Portal"),
-                     alt.Tooltip("avisos:Q", title="Avisos"),
-                     alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")]
-        ).properties(height=140)
-        st.altair_chart(grafico_portal, width="stretch")
+        st.markdown(
+            "**Comparación de precios entre portales, localidad por localidad.** La brecha general está arriba, "
+            "en «Lo que encontramos»; acá se puede verificar que no se invierte dentro de una misma localidad y "
+            "banda de superficie."
+        )
         localidades_p = sorted(explo["localidad"].dropna().unique())
         loc_portal = st.selectbox("Localidad para comparar portales", localidades_p,
                                   index=localidades_p.index("Capital") if "Capital" in localidades_p else 0)
@@ -427,7 +465,7 @@ def el_modelo():
         "exigentes (medianas por tramo de superficie y por superficie × moneda) "
         "y comparamos contra cuatro familias de modelos con la misma validación "
         "por firma de inmueble; gana un **HistGradientBoosting** entrenado con "
-        "**13 características** para minimizar el error absoluto."
+        f"**{len(metrics['columnas_finales'])} características** para minimizar el error absoluto."
     )
 
     esc = pd.DataFrame(metrics["escalera_pisos"])
@@ -542,7 +580,7 @@ a la observada en test.
 1. *Existe al predecir:* la publica el aviso.
 2. *No contiene la respuesta:* la pendiente log-log entre precio y superficie es
    **{fuga['pendiente_log_precio_vs_log_superficie']}** (< 1): en esta relación promedio, al duplicarse los m² el precio aumenta cerca
-   del 64%. Esto no permite anticipar el cambio de precio de un aviso individual.
+   del {pct(2 ** fuga['pendiente_log_precio_vs_log_superficie'] - 1)}. Esto no permite anticipar el cambio de precio de un aviso individual.
 3. *Sin superficie sigue ganando:* al quitarla el MAE pasa a
    **{miles(fuga['mae_sin_superficie'])}** ± {miles(fuga['desvio_sin_superficie'])} $/m²,
    muy por debajo de la mediana global ({miles(fuga['mae_piso'])}).
@@ -560,7 +598,7 @@ concentra más avisos "Sobrevalorados" y el más barato más "Oportunidades",
 porque agrupar por el precio real junta en los extremos a los avisos que
 quedan por encima o por debajo de la estimación. En cambio, al cruzar por el quintil del
 **precio predicho** (lo único que conoce la app antes de saber cuánto pide el
-aviso), el reparto es equilibrado en todos los tramos (entre 69% y 87% en línea):
+aviso), el reparto es equilibrado en todos los tramos (entre {min(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} y {max(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} en línea):
 """)
         c_r, c_p = st.columns(2)
         with c_r:
@@ -809,6 +847,8 @@ el_modelo()
 ajuste(explo, metrics["test"])
 ancla("casos")
 casos(explo, metrics["cortes_residuo"], ORIGEN_CSV)
+ancla("respuesta")
+respuesta(explo, metrics["cortes_residuo"], metrics)
 ancla("explora")
 explora()
 ancla("simulador")

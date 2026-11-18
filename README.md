@@ -304,16 +304,19 @@ avisos nuevos por dia, asi que la union suma filas reales.
 
 La version final del proyecto: una app de Streamlit, publicada en
 **[brujula-inmobiliaria.streamlit.app](https://brujula-inmobiliaria.streamlit.app/)**, que cuenta los hallazgos
-de las tres entregas anteriores (el tallo: *El proyecto*, *Los datos*, *Lo
-que encontramos*, *El modelo*) y deja usarlos (la copa: *Explora* y *Proba
-el modelo*). El codigo vive en `app/`.
+de las tres entregas anteriores y responde la pregunta del proyecto. Es un
+solo scroll, con el menu lateral como indice: el tallo narrativo (*El
+proyecto*, *Los datos*, *Lo que encontramos*, *El modelo*, *Los casos*, *La
+respuesta*) y despues la copa, donde el usuario pregunta lo suyo (*Explora*
+y *Proba el modelo*). El codigo vive en `app/`.
 
 | Archivo | Que hace |
 |---|---|
 | `app/build_app.py` | Toma el CSV mas reciente de `resultados/`, entrena el mismo pipeline de `notebooks/entrega3_modelado.ipynb` (misma semilla, mismos folds por firma de inmueble) y deja en `app/data/` el modelo entrenado, el dataset con predicciones, y todos los numeros de los "Como lo sabemos" |
 | `app/streamlit_app.py` | La app: lee `app/data/` y no reentrena nada |
 | `app/requirements.txt` | Dependencias para Streamlit Community Cloud |
-| `app/analisis_entrega4.py` | Comparables, casos de prueba y graficos geograficos |
+| `app/analisis_entrega4.py` | Nivel de precios, zonas y mapa, grafico de ajuste (real vs. predicho), comparables, que sube y que baja el precio, casos extremos y el cierre |
+| `app/paleta.py` | Colores compartidos: la misma categoria conserva su color en todos los graficos |
 | `app/data/departamentos_gran_mendoza.geojson` | Limites departamentales para el mapa, recortados y simplificados |
 
 La app conserva el modelo y los datos generados por `build_app.py`. Para
@@ -323,6 +326,13 @@ convierten con la cotizacion indicada en `metrics.json`.
 
 Los limites del mapa se obtuvieron de [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina).
 El recorte cubre el Gran Mendoza y no modifica las zonas calculadas para el modelo.
+
+**Ninguna cifra de los textos esta escrita a mano.** Los titulares, los
+porcentajes y los montos se calculan en cada corrida desde
+`app/data/metrics.json` y `app/data/dataset_exploracion.parquet`, asi que si
+`build_app.py` vuelve a correr con mas avisos, la narracion se actualiza con
+los datos. `tests/test_entrega4.py` verifica justamente eso: recalcula las
+cifras principales y falla si algun titular deja de coincidir.
 
 ### Como se regenera
 
