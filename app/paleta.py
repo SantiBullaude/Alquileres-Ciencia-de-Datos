@@ -14,5 +14,25 @@ COLORES_MODELO = {"P0": "#9173aa", "P1": "#b49a45", "P3": "#c87938", "Lineal": "
 COLORES_OTROS = ["#4f86bd", "#c87938", "#9173aa", "#4d9486", "#bf6154", "#b49a45", "#7e9451", "#a76442", "#687db5", "#997b67", "#6d9698"]
 
 
+# Resaltar y apagar (Clase 10): lo que el titulo nombra va en color; el resto,
+# en gris. Sigue estando, pero deja de competir por la atencion.
+COLOR_FOCO = "#2a78d6"
+COLOR_FOCO_2 = "#c87938"
+GRIS_APAGADO = "#c3c2b7"
+
+
 def escala(colores):
     return alt.Scale(domain=list(colores), range=list(colores.values()))
+
+
+def resaltar(valores, focos):
+    """Escala que pinta solo los valores que el titulo nombra.
+
+    `focos` es una lista (todos con el color de foco) o un dict {valor: color}
+    cuando el titulo compara dos cosas distintas.
+    """
+    if not isinstance(focos, dict):
+        focos = {valor: COLOR_FOCO for valor in focos}
+    dominio = [str(valor) for valor in valores]
+    focos = {str(clave): color for clave, color in focos.items()}
+    return alt.Scale(domain=dominio, range=[focos.get(valor, GRIS_APAGADO) for valor in dominio])

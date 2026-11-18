@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.metrics import r2_score
-from paleta import COLORES_LOCALIDAD, COLORES_PORTAL, COLORES_OTROS, COLORES_COMPARACION, escala
+from paleta import (COLORES_LOCALIDAD, COLORES_PORTAL, COLORES_OTROS, COLORES_COMPARACION,
+                    COLOR_FOCO, COLOR_FOCO_2, GRIS_APAGADO, escala, resaltar)
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -194,7 +195,8 @@ def ubicacion(datos, escala_etiqueta, aporte_zona=None):
         "localidad conviven barrios muy distintos."
     )
     grafico = alt.Chart(tabla).mark_bar().encode(
-        color=alt.Color("localidad:N", scale=escala(COLORES_LOCALIDAD), legend=None),
+        color=alt.Color("localidad:N", legend=None, scale=resaltar(
+            tabla.localidad, {lider.localidad: COLOR_FOCO, ultima.localidad: COLOR_FOCO_2})),
         x=alt.X("mediana:Q", title="Mediana del precio publicado ($/m²)"),
         y=alt.Y("localidad:N", title=None, sort="-x"),
         tooltip=["localidad:N", alt.Tooltip("avisos:Q", title="Avisos"),
@@ -261,8 +263,8 @@ def zonas(datos, aporte_zona=None):
     grafico_zonas = alt.Chart(etiquetas).mark_bar().encode(
         x=alt.X("mediana:Q", title="Mediana del precio publicado ($/m²)"),
         y=alt.Y("zona:N", title=None, sort="-x", axis=alt.Axis(labelLimit=260)),
-        color=alt.Color("zona:N", scale=alt.Scale(domain=etiquetas.zona.tolist(),
-                                                  range=COLORES_OTROS[:len(etiquetas)]), legend=None),
+        color=alt.Color("zona:N", legend=None, scale=resaltar(
+            etiquetas.zona, {etiquetas.zona.iloc[0]: COLOR_FOCO, etiquetas.zona.iloc[-1]: COLOR_FOCO_2})),
         tooltip=[alt.Tooltip("zona:N", title="Zona"), alt.Tooltip("avisos:Q", title="Avisos"),
                  alt.Tooltip("distancia:Q", title="Distancia mediana al centro (km)", format=".1f"),
                  alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")],
@@ -315,7 +317,8 @@ def ajuste(datos, test_metrics):
     )
 
     orden_q = ["Q1 (más barato)", "Q2", "Q3 (central)", "Q4", "Q5 (más caro)"]
-    colores_q = alt.Scale(domain=orden_q, range=["#9173aa", "#4d9486", "#4f86bd", "#4d9486", "#c85c50"])
+    colores_q = resaltar(orden_q, {"Q3 (central)": COLOR_FOCO,
+                                   "Q5 (más caro)": COLORES_COMPARACION["Sobrevalorado"]})
     chart_quintiles = alt.Chart(error_por_tramo).mark_bar().encode(
         x=alt.X("mae:Q", title="Error absoluto medio — MAE ($/m²)"),
         y=alt.Y("quintil_real:N", sort=orden_q, title="Quintil del precio publicado"),
@@ -511,6 +514,10 @@ def casos(datos, cortes, csv_origen=None):
                 range=[COLORES_COMPARACION["Sobrevalorado"], COLORES_COMPARACION["Oportunidad"]],
             ),
         ),
+        opacity=alt.condition(
+            alt.FieldOneOfPredicate(field="localidad",
+                                    oneOf=[primera.localidad, segunda.localidad]),
+            alt.value(1), alt.value(0.3)),
         tooltip=[
             alt.Tooltip("localidad:N", title="Localidad"),
             alt.Tooltip("avisos:Q", title="Avisos totales"),
