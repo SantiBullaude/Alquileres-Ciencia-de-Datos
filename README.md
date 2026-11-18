@@ -313,6 +313,16 @@ el modelo*). El codigo vive en `app/`.
 | `app/build_app.py` | Toma el CSV mas reciente de `resultados/`, entrena el mismo pipeline de `notebooks/entrega3_modelado.ipynb` (misma semilla, mismos folds por firma de inmueble) y deja en `app/data/` el modelo entrenado, el dataset con predicciones, y todos los numeros de los "Como lo sabemos" |
 | `app/streamlit_app.py` | La app: lee `app/data/` y no reentrena nada |
 | `app/requirements.txt` | Dependencias para Streamlit Community Cloud |
+| `app/analisis_entrega4.py` | Comparables, casos de prueba y graficos geograficos |
+| `app/data/departamentos_gran_mendoza.geojson` | Limites departamentales para el mapa, recortados y simplificados |
+
+La app conserva el modelo y los datos generados por `build_app.py`. Para
+comparar un aviso usa la misma localidad, moneda y cantidad de dormitorios,
+y superficies hasta un 20 % mayores o menores. Los precios en dolares se
+convierten con la cotizacion indicada en `metrics.json`.
+
+Los limites del mapa se obtuvieron de [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina).
+El recorte cubre el Gran Mendoza y no modifica las zonas calculadas para el modelo.
 
 ### Como se regenera
 

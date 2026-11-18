@@ -469,7 +469,7 @@ def main():
                             "mediana": float(mediana)}
 
     metrics = {
-        "dataset": {"csv": str(csv.relative_to(RAIZ)), "filas_totales": n_total,
+        "dataset": {"csv": csv.relative_to(RAIZ).as_posix(), "filas_totales": n_total,
                     "filas_modeladas": len(datos), "avisos_usd_convertidos": int((datos["moneda"] == "USD").sum()),
                     "tc_usd": TC_USD, "ventana_inicio": "2026-09-07", "ventana_fin": "2026-10-13"},
         "pasos_filtro": pasos_filtro,
