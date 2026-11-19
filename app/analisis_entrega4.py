@@ -106,12 +106,10 @@ def nivel_de_precios(datos, metrics, escala_moneda, escala_portal):
     """Cuanto se pide hoy, y cuanto cambia el precio segun el portal y la moneda."""
     mensual = datos.precio_m2 * datos.superficie_cubierta_m2
     p25, mediana, p75 = mensual.quantile(.25), mensual.median(), mensual.quantile(.75)
-    st.subheader(
-        f"La mitad de los avisos pide entre ${miles(p25)} y ${miles(p75)} por mes, "
-        f"con una mediana de ${miles(mediana)}"
-    )
+    st.subheader("La mayoría de los alquileres se mueve en una banda de precios estrecha")
     st.markdown(
-        f"Antes de juzgar un aviso hay que saber contra qué se lo compara. En la ventana relevada, el alquiler "
+        f"La mitad de los avisos pide entre **${miles(p25)}** y **${miles(p75)}** por mes. "
+        f"Antes de juzgar un aviso hay que saber contra qué se lo compara: en la ventana relevada, el alquiler "
         f"mensual mediano de un departamento en el Gran Mendoza es de **${miles(mediana)}** "
         f"(**${miles(datos.precio_m2.median())}/m²**), con el 10 % más barato por debajo de "
         f"**${miles(mensual.quantile(.1))}** y el 10 % más caro por encima de **${miles(mensual.quantile(.9))}**."
@@ -184,15 +182,13 @@ def ubicacion(datos, escala_etiqueta, aporte_zona=None):
              .query("avisos >= 50").sort_values("mediana", ascending=False))
     lider, ultima = tabla.iloc[0], tabla.iloc[-1]
     brecha_loc = lider.mediana / ultima.mediana - 1
-    st.subheader(
-        f"{nombre(lider.localidad)} lidera el precio por m²: un {pct(brecha_loc)} por encima de "
-        f"{nombre(ultima.localidad)}"
-    )
+    st.subheader(f"{nombre(lider.localidad)} lidera el precio por m² y {nombre(ultima.localidad)} "
+                 "cierra la tabla")
     st.markdown(
         "El precio por metro cuadrado cambia fuerte según el departamento: la mediana va de "
         f"**${miles(ultima.mediana)}/m²** en {nombre(ultima.localidad)} a **${miles(lider.mediana)}/m²** en "
-        f"{nombre(lider.localidad)}. Pero la localidad sola no alcanza, porque dentro de una misma "
-        "localidad conviven barrios muy distintos."
+        f"{nombre(lider.localidad)}, un **{pct(brecha_loc)} más**. Pero la localidad sola no alcanza, porque "
+        "dentro de una misma localidad conviven barrios muy distintos."
     )
     grafico = alt.Chart(tabla).mark_bar().encode(
         color=alt.Color("localidad:N", legend=None, scale=resaltar(
@@ -245,10 +241,9 @@ def zonas(datos, aporte_zona=None):
     partidas = datos.dropna(subset=["zona_geo"]).groupby("localidad").zona_geo.nunique()
     repartidas = int((partidas > 1).sum())
 
-    st.subheader(
-        f"Por eso agrupamos en zonas: entre la más barata y la más cara hay un {pct(brecha_zonas)} de diferencia"
-    )
+    st.subheader("Por eso agrupamos en zonas: una localidad no es un mercado homogéneo")
     st.markdown(
+        f"Entre la zona más barata y la más cara hay un **{pct(brecha_zonas)}** de diferencia. "
         f"Un aviso trae latitud y longitud, pero esas coordenadas sueltas no le dicen nada al modelo. "
         f"Agrupamos los avisos con **KMeans en 6 zonas** dentro de los 30 km de Plaza Independencia y dejamos "
         f"el interior provincial como una zona aparte. La decisión se justifica con dos hechos: "
@@ -304,16 +299,13 @@ def ajuste(datos, test_metrics):
     mae_central = float(error_por_tramo.loc[error_por_tramo["quintil_real"] == "Q3 (central)", "mae"].iloc[0])
     mae_caro = float(error_por_tramo.loc[error_por_tramo["quintil_real"] == "Q5 (más caro)", "mae"].iloc[0])
     veces = mae_caro / mae_central
-    st.subheader(
-        f"En el tramo central el modelo se ajusta a ${miles(mae_central)}/m², "
-        f"{dec(veces)} veces más preciso que en el extremo caro"
-    )
+    st.subheader("El ajuste es firme en el tramo central y se abre en el extremo caro")
     st.markdown(
         "El modelo se entrena para representar a la gran mayoría de los alquileres estándar: sobre la diagonal "
         "roja el precio publicado coincide con la estimación. En los **quintiles centrales (Q2 a Q4)** el error "
         f"absoluto medio baja hasta **${miles(mae_central)}/m²**, mientras que en el **quintil más caro (Q5)** "
-        f"sube a **${miles(mae_caro)}/m²** porque allí aparecen departamentos con lujos no estructurados o "
-        "precios muy por encima de su zona."
+        f"sube a **${miles(mae_caro)}/m²**: ahí el modelo es **{dec(veces)} veces menos preciso**, porque "
+        "aparecen departamentos con lujos no estructurados o precios muy por encima de su zona."
     )
 
     orden_q = ["Q1 (más barato)", "Q2", "Q3 (central)", "Q4", "Q5 (más caro)"]
@@ -443,11 +435,11 @@ def que_mueve_el_precio(datos, csv_origen=None, banda=(40, 90)):
     suben = efectos[efectos.efecto > 0].head(2)
     bajan = efectos[efectos.efecto < 0]
 
-    st.subheader(
-        f"Qué sube y qué baja el precio: {suben.factor.iloc[0].lower()} ({porcentaje(suben.efecto.iloc[0])}) "
-        f"y {suben.factor.iloc[1].lower()} ({porcentaje(suben.efecto.iloc[1])}) son los que más mueven la aguja"
-    )
+    st.subheader(f"Qué sube y qué baja el precio: {suben.factor.iloc[0].lower()} y "
+                 f"{suben.factor.iloc[1].lower()} son los que más mueven la aguja")
     st.markdown(
+        f"Suben la mediana un **{porcentaje(suben.efecto.iloc[0])}** y un "
+        f"**{porcentaje(suben.efecto.iloc[1])}** respectivamente. "
         f"Comparando solo departamentos de {banda[0]} a {banda[1]} m² —para que la superficie no distorsione el "
         "precio por m²—, cada barra muestra cuánto cambia la mediana del precio por metro cuadrado cuando el aviso "
         "tiene esa característica frente a cuando no la tiene."
@@ -477,8 +469,9 @@ def que_mueve_el_precio(datos, csv_origen=None, banda=(40, 90)):
 
 def casos(datos, cortes, csv_origen=None):
     fuera = int((~datos.etiqueta.eq("En linea")).sum())
-    st.header(f"Los casos: dónde y por qué {miles(fuera)} avisos se apartan de la referencia")
+    st.header("Los casos: dónde y por qué algunos avisos se apartan de la referencia")
     st.markdown(
+        f"Son **{miles(fuera)} avisos** sobre {miles(len(datos))}. "
         "Para responder cuándo un alquiler está sobrevalorado o es una oportunidad, combinamos dos pasos: "
         f"primero identificamos los avisos que superan los cortes de validación (**{porcentaje(cortes['bajo'])}** "
         f"y **{porcentaje(cortes['alto'])}** frente al modelo) y después los contrastamos con **vecinos comparables** "
@@ -494,10 +487,8 @@ def casos(datos, cortes, csv_origen=None):
         .sort_values("arriba", ascending=False)
     )
     primera, segunda = localidades.iloc[0], localidades.iloc[1]
-    st.subheader(
-        f"{nombre(primera.localidad)} ({pct(primera.arriba, 1)}) y {nombre(segunda.localidad)} "
-        f"({pct(segunda.arriba, 1)}) tienen la mayor proporción de avisos sobrevalorados"
-    )
+    st.subheader(f"{nombre(primera.localidad)} y {nombre(segunda.localidad)} concentran la mayor "
+                 "proporción de avisos sobrevalorados")
     porcentajes = localidades.melt(
         id_vars=["localidad", "avisos"], value_vars=["arriba", "abajo"], var_name="comparacion", value_name="proporcion"
     )
@@ -565,11 +556,9 @@ def casos(datos, cortes, csv_origen=None):
     brecha_usd = datos.loc[datos.moneda.eq("USD"), "precio_m2"].median() / datos.loc[datos.moneda.eq("ARS"), "precio_m2"].median() - 1
     tasa_extra = tasa("Amoblado o equipado en el aviso", "Con la característica")
     tasa_base = tasa("Amoblado o equipado en el aviso", "Resto de los avisos")
-    st.subheader(
-        f"Publicar en dólares (+{pct(brecha_usd)} por m²) y los detalles que no entran en la ficha "
-        "duplican los sobreprecios"
-    )
+    st.subheader("Publicar en dólares y los detalles que no entran en la ficha duplican los sobreprecios")
     st.markdown(
+        f"Los avisos en dólares piden un **{pct(brecha_usd)} más por m²**. "
         "¿Qué tienen en común los avisos donde el precio supera ampliamente al modelo? Al cruzar las predicciones "
         "con las características del aviso y con el texto libre de la publicación, aparecen dos explicaciones claras: "
         f"**el segmento en dólares** (donde {pct(fuera_usd)} de los avisos se sale de los cortes) y **atributos de "
@@ -658,21 +647,18 @@ def casos(datos, cortes, csv_origen=None):
 
     caro, vecinos_caro = caso_extremo(datos, "Sobrevalorado")
     barato, vecinos_barato = caso_extremo(datos, "Oportunidad")
-    if caro is not None and barato is not None:
+    hay_casos = caro is not None and barato is not None
+    if hay_casos:
         dif_caro = caro.precio_m2 / vecinos_caro.precio_m2.median() - 1
         dif_barato = barato.precio_m2 / vecinos_barato.precio_m2.median() - 1
-        st.subheader(
-            f"Dos casos reales en los extremos: {porcentaje(dif_caro)} frente a "
-            f"{miles(len(vecinos_caro))} vecinos en {nombre(caro.localidad)} y "
-            f"{porcentaje(dif_barato)} frente a {miles(len(vecinos_barato))} en "
-            f"{nombre(barato.localidad)}"
-        )
-    else:
-        st.subheader("Dos casos reales en los extremos")
+    st.subheader("Dos casos reales en los extremos: el modelo y los vecinos apuntan en la misma dirección")
     st.markdown(
         "Elegimos dos avisos del conjunto de prueba (que el modelo nunca vio al entrenar), uno de cada extremo, "
-        "entre 30 y 130 m² y con al menos diez comparables directos. En ambos casos, **tanto el modelo como la "
-        "mediana de los vecinos apuntan en la misma dirección**."
+        "entre 30 y 130 m² y con al menos diez comparables directos."
+        + (f" El caso caro pide un **{porcentaje(dif_caro)}** más que {miles(len(vecinos_caro))} vecinos en "
+           f"{nombre(caro.localidad)}; la oportunidad, un **{porcentaje(dif_barato)}** menos que "
+           f"{miles(len(vecinos_barato))} en {nombre(barato.localidad)}."
+           if hay_casos else "")
     )
     col_sobre, col_opor = st.columns(2)
     columnas_casos = [
@@ -715,13 +701,12 @@ def respuesta(datos, cortes, metrics):
     sobre = datos.etiqueta.eq("Sobrevalorado").sum()
     opor = datos.etiqueta.eq("Oportunidad").sum()
     test = metrics["test"]
-    st.subheader(
-        f"Un alquiler está sobrevalorado cuando pide más de {pct(cortes['alto'], 1)} por encima de lo que piden "
-        f"sus equivalentes, y sus vecinos lo confirman"
-    )
+    st.subheader("Un alquiler está sobrevalorado cuando se aparta de sus equivalentes más de lo que "
+                 "el modelo se equivoca, y sus vecinos lo confirman")
     st.markdown(
-        "Esa es la definición que sostiene el proyecto, y no es arbitraria: los dos cortes "
-        f"({pct(cortes['bajo'], 1)} y {pct(cortes['alto'], 1)}) son los percentiles 10 y 90 del error que el "
+        f"En números: cuando pide más de un **{pct(cortes['alto'], 1)}** por encima de lo que piden sus "
+        f"equivalentes (o más de un **{pct(abs(cortes['bajo']), 1)}** por debajo, para una oportunidad). "
+        "Esa definición no es arbitraria: los dos cortes son los percentiles 10 y 90 del error que el "
         "modelo comete **en validación**, sobre avisos que nunca vio. Dicho de otro modo: un aviso recién se "
         "considera fuera de precio cuando se aparta más de lo que el propio modelo se equivoca normalmente. "
         f"Dentro de esa banda —el margen de error honesto de una estimación de ${miles(test['mae_modelo'])}/m²— "

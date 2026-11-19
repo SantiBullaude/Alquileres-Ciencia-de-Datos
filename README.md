@@ -4,10 +4,14 @@ Proyecto Integrador - Ciencia de Datos 2026 (UTN FRM).
 
 ## La pregunta
 
-Un aviso de alquiler en Mendoza, ¿esta sobrevalorado, en linea con el
-mercado, o es una oportunidad? El modelo es supervisado (regresion sobre
-precio_m2 + analisis del residuo); el detalle de la propuesta completa esta
-en `Documentacion/Propuestas_Proyecto_Integrador_Inmobiliario.docx`.
+¿Cuando un alquiler en Mendoza esta realmente sobrevalorado (o es una
+oportunidad) y donde se concentran esos desfases? El modelo es supervisado
+(regresion sobre precio_m2 + analisis del residuo): entrenamos con las
+caracteristicas del aviso para estimar lo que pide el mercado por
+departamentos equivalentes, y los avisos que se apartan de esa referencia
+mas de lo que el modelo se equivoca son los que auditamos contra sus
+vecinos comparables. El detalle de la propuesta completa esta en
+`Documentacion/Propuestas_Proyecto_Integrador_Inmobiliario.docx`.
 
 ## Fuentes y unidad de analisis
 
