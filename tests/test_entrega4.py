@@ -1,5 +1,6 @@
 """Recorridos de la app y selección de avisos comparables."""
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -76,9 +77,11 @@ class AppEntrega4Test(unittest.TestCase):
         metrics = json.loads((RAIZ / "app" / "data" / "metrics.json").read_text(encoding="utf-8"))
         corte = f"{metrics['cortes_residuo']['alto']:.1%}".replace(".", ",").replace("%", " %")
         self.assertIn("La respuesta", [h.value for h in self.app.header])
-        cierres = [sh.value for sh in self.app.subheader if "sobrevalorado cuando pide" in sh.value]
+        cierres = [sh.value for sh in self.app.subheader if "Un alquiler está sobrevalorado" in sh.value]
         self.assertEqual(len(cierres), 1)
-        self.assertIn(corte, cierres[0])
+        # el corte va en el cuerpo, no en el titulo
+        self.assertTrue(any(corte in m.value for m in self.app.markdown),
+                        f"ningun texto trae el corte {corte}")
         radio = self.campo("radio", "La historia se lee en orden. Acá las preguntas las hacés vos.")
         radio.set_value("La respuesta").run()
         self.assertFalse(self.app.exception)
@@ -91,19 +94,25 @@ class AppEntrega4Test(unittest.TestCase):
         self.assertNotIn("cochera", sobreprecios.lower())
         self.assertTrue(any(t.startswith("Qué sube y qué baja el precio") for t in titulares))
 
-    def test_los_titulares_salen_de_los_datos(self):
-        """Las cifras de los titulares se recalculan: nada escrito a mano."""
+    def test_las_cifras_salen_de_los_datos(self):
+        """Las cifras del cuerpo se recalculan: nada escrito a mano."""
         datos = pd.read_parquet(RAIZ / "app" / "data" / "dataset_exploracion.parquet")
         pesos = datos[datos.moneda.eq("ARS")].copy()
         pesos["mensual"] = pesos.precio_m2 * pesos.superficie_cubierta_m2
         pesos = pesos.dropna(subset=["superficie_cubierta_m2", "mensual"])
         pendiente = np.polyfit(np.log10(pesos.superficie_cubierta_m2), np.log10(pesos.mensual), 1)[0]
         crecimiento = f"{2 ** pendiente - 1:.0%}".replace("%", " %")
-        titulares = [sh.value for sh in self.app.subheader]
-        self.assertTrue(any(f"el precio crece un {crecimiento}" in t for t in titulares),
-                        f"ningun titular trae {crecimiento}: {titulares}")
-        fuera = int((~datos.etiqueta.eq("En linea")).sum())
-        self.assertIn(f"{fuera:,}".replace(",", "."), " ".join(h.value for h in self.app.header))
+        textos = [m.value for m in self.app.markdown]
+        self.assertTrue(any(f"crece un **{crecimiento}**" in t for t in textos),
+                        f"ningun texto trae {crecimiento}")
+        fuera = f"{int((~datos.etiqueta.eq('En linea')).sum()):,}".replace(",", ".")
+        self.assertTrue(any(fuera in t for t in textos), f"ningun texto trae {fuera} avisos fuera de linea")
+
+    def test_los_titulos_no_llevan_cifras(self):
+        """Los numeros van en el cuerpo: los titulos afirman el hallazgo en palabras."""
+        titulos = [sh.value for sh in self.app.subheader] + [h.value for h in self.app.header]
+        con_cifras = [t for t in titulos if re.search(r"[0-9]", t)]
+        self.assertEqual(con_cifras, [], f"estos titulos traen cifras: {con_cifras}")
 
 if __name__ == "__main__":
     unittest.main()

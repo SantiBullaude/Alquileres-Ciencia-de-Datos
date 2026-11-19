@@ -150,7 +150,6 @@ st.set_page_config(page_title="¿Esta sobrevalorado?", layout="wide")
 
 st.markdown("""
 <style>
-.bloque-cierra {font-size: 0.85rem; color: #898781; margin-top: -0.5rem;}
 .stVegaLiteChart:has(> .vega-bindings select) {display: flex; flex-direction: column;}
 .stVegaLiteChart:has(> .vega-bindings select) > .vega-bindings {order: -1; margin-bottom: 0.75rem;}
 </style>
@@ -178,11 +177,23 @@ st.sidebar.caption(
 # EL PROYECTO (portada)
 # =============================================================================
 def portada():
-    st.title("¿Un alquiler en Mendoza está sobrevalorado, en línea, o es una oportunidad?")
+    st.title("¿Cuándo un alquiler en Mendoza está realmente sobrevalorado "
+             "(o es una oportunidad) y dónde se concentran esos desfases?")
     conteo = explo["etiqueta"].value_counts()
     dentro = int(conteo.get("En linea", 0))
     alto = int(conteo.get("Sobrevalorado", 0))
     bajo = int(conteo.get("Oportunidad", 0))
+    corte_alto = metrics["cortes_residuo"]["alto"]
+    foco = (explo.assign(arriba=explo.etiqueta.eq("Sobrevalorado"))
+            .groupby("localidad", as_index=False).agg(avisos=("clave", "size"), arriba=("arriba", "mean"))
+            .query("avisos >= 50").sort_values("arriba", ascending=False))
+    st.markdown(
+        f"**Casi 8 de cada 10 avisos piden lo que corresponde a su tamaño y ubicación, pero en "
+        f"{nombre(foco.iloc[0].localidad)} ({pct(foco.iloc[0].arriba, 1)}) y "
+        f"{nombre(foco.iloc[1].localidad).split(' ')[0]} ({pct(foco.iloc[1].arriba, 1)}) se dispara la "
+        f"proporción de alquileres que superan en más de un {pct(corte_alto)} tanto al modelo como a sus "
+        "vecinos comparables.**"
+    )
     st.markdown(
         f"Entrenamos un modelo con las características de cada aviso para estimar cuánto piden "
         f"por departamentos equivalentes: **{miles(dentro)} avisos ({coma(dentro / len(explo), decimales=0)})** "
@@ -191,7 +202,7 @@ def portada():
     )
     c1, c2, c3 = st.columns(3)
     c1.metric("En línea", miles(dentro))
-    corte_bajo, corte_alto = metrics["cortes_residuo"]["bajo"], metrics["cortes_residuo"]["alto"]
+    corte_bajo = metrics["cortes_residuo"]["bajo"]
     c1.caption(f"Avisos dentro de los cortes de referencia ({pct(corte_bajo, 1)} a +{pct(corte_alto, 1)}).")
     c2.metric("Por encima (Sobrevalorados)", miles(alto))
     c2.caption(f"Piden más de un {pct(corte_alto, 1)} por encima de la referencia del modelo.")
@@ -210,9 +221,7 @@ def los_datos():
     st.header("Los datos")
     cantidades = explo["localidad"].fillna("Sin localidad").value_counts().rename_axis("localidad").reset_index(name="avisos")
     principales = cantidades.head(3)
-    st.subheader(
-        f"Tres localidades concentran el {pct(principales.avisos.sum() / len(explo))} de los avisos publicados"
-    )
+    st.subheader("El mercado publicado se concentra en tres localidades")
     localidades = ", ".join(principales.localidad.iloc[:-1]) + " y " + principales.localidad.iloc[-1]
     localidades = localidades.replace("Guaymallen", "Guaymallén")
     n_principales = principales.avisos.sum()
@@ -222,8 +231,8 @@ def los_datos():
         "si una misma propiedad se publica en ambos portales, aparece en dos filas que agrupamos al validar."
     )
     st.markdown(
-        f"{localidades} suman **{miles(n_principales)} avisos** "
-        f"({coma(n_principales / len(explo), decimales=0)} de la muestra). "
+        f"{localidades} suman **{miles(n_principales)} avisos**: el "
+        f"**{pct(n_principales / len(explo))} de la muestra**. "
         "Esa concentración explica dónde el modelo y las búsquedas cuentan con más comparables directos."
     )
     grafico = alt.Chart(cantidades).mark_bar().encode(
@@ -284,7 +293,6 @@ imposibles y agrupamos posibles duplicados por firma de inmueble al separar entr
         ).properties(height=220)
         st.altair_chart(chart_evo, width="stretch")
 
-    st.markdown('<p class="bloque-cierra">Cierra la Entrega 1.</p>', unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -302,15 +310,13 @@ def lo_que_encontramos():
     precio_log = np.log10(datos_superficie["precio_mensual_ars"])
     pendiente_log = float(np.polyfit(superficie_log, precio_log, 1)[0])
     crecimiento_doble = 2 ** pendiente_log - 1
-    st.subheader(
-        f"El alquiler mensual sube menos que la superficie: al duplicar los m², el precio crece un "
-        f"{pct(crecimiento_doble)}"
-    )
+    st.subheader("El alquiler mensual sube menos que la superficie")
     st.markdown(
-        "Un departamento del doble de superficie no cuesta el doble por mes: la relación tiene rendimientos "
-        f"decrecientes (pendiente log-log de **{pendiente_log:.2f}**). Por eso el metro cuadrado de un "
-        "monoambiente es más caro que el de un piso grande, y cualquier comparación justa debe controlar "
-        "primero los metros cuadrados.".replace(".", ",", 1)
+        "Un departamento del doble de superficie no cuesta el doble por mes: al duplicar los m², el precio "
+        f"crece un **{pct(crecimiento_doble)}**. La relación tiene rendimientos decrecientes "
+        f"(pendiente log-log de **{dec(pendiente_log)}**). Por eso el metro cuadrado de un monoambiente es "
+        "más caro que el de un piso grande, y cualquier comparación justa debe controlar primero los "
+        "metros cuadrados."
     )
     base = alt.Chart(datos_superficie.sample(n=min(1500, len(datos_superficie)), random_state=42))
     lineal = base.mark_circle(size=14, opacity=0.3, color=COLOR_ARS).encode(
@@ -329,10 +335,8 @@ def lo_que_encontramos():
 
     chicos_h3 = distancia[distancia["superficie_cubierta_m2"] <= 40]
     sp_chicos = chicos_h3["dist_centro_km"].corr(chicos_h3["precio_m2"], method="spearman")
-    st.subheader(
-        f"La distancia al centro engaña en global ({dec(correlacion_distancia, 3)}), pero abarata los chicos "
-        "y dibuja una U por Luján"
-    )
+    st.subheader("La distancia al centro engaña en la vista global, pero abarata los chicos "
+                 "y dibuja una U por Luján")
     st.markdown(
         f"Si miramos todos los avisos juntos, la distancia a Plaza Independencia parece no importar "
         f"(Spearman **{dec(correlacion_distancia, 3)}**). "
@@ -479,7 +483,6 @@ def lo_que_encontramos():
         if not grupo_p.empty:
             tabla(grupo_p.groupby("fuente").agg(avisos=("clave", "size"), mediana=("precio_m2", "median")))
 
-    st.markdown('<p class="bloque-cierra">Cierra la Entrega 2.</p>', unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -488,9 +491,10 @@ def lo_que_encontramos():
 def el_modelo():
     st.header("El modelo")
     test = metrics["test"]
-    st.subheader(f"El modelo erra {test['mejora_vs_mejor_piso_pct']:.0%} menos que la mejor regla de medianas "
-                 f"que conocemos, y {test['mejora_pct']:.0%} menos que la mediana global")
+    st.subheader("El modelo le gana a la mejor regla de medianas que conocemos")
     st.markdown(
+        f"Erra un **{pct(test['mejora_vs_mejor_piso_pct'])} menos** que esa regla y un "
+        f"**{pct(test['mejora_pct'])} menos** que la mediana global. "
         "Un piso que solo predice la mediana global no sabe ni cuántos m² tiene "
         "el departamento. Por eso armamos una **escalera de pisos** cada vez más "
         "exigentes (medianas por tramo de superficie y por superficie × moneda) "
@@ -646,7 +650,6 @@ aviso), el reparto es equilibrado en todos los tramos (entre {min(f["En linea"] 
             df_cp = pd.DataFrame(metrics["cruce_veredicto_tramo_predicho"]).set_index("tramo_predicho")
             st.table(df_cp.map("{:.0%}".format))
 
-    st.markdown('<p class="bloque-cierra">Cierra la Entrega 3.</p>', unsafe_allow_html=True)
 
 
 # =============================================================================
