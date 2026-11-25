@@ -8,7 +8,8 @@ import pandas as pd
 import streamlit as st
 from sklearn.metrics import r2_score
 from paleta import (COLORES_LOCALIDAD, COLORES_PORTAL, COLORES_OTROS, COLORES_COMPARACION,
-                    COLOR_FOCO, COLOR_FOCO_2, GRIS_APAGADO, escala, resaltar)
+                    COLOR_FOCO, COLOR_FOCO_2, GRIS_APAGADO, NOMBRE_COMPARACION, escala, mostrar,
+                    resaltar)
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -34,6 +35,19 @@ def pct(valor, decimales=0):
 ACENTOS = {"Guaymallen": "Guaymallén", "Lujan de Cuyo": "Luján de Cuyo", "Maipu": "Maipú",
            "Las Heras": "Las Heras", "San Martin": "San Martín", "Tunuyan": "Tunuyán",
            "General alvear": "General Alvear"}
+
+
+TOTAL_PASOS = 6
+
+
+def paso(numero, texto):
+    """Ubica la seccion dentro de la historia: que paso es y que le aporta a la pregunta."""
+    st.caption(f"Paso {numero} de {TOTAL_PASOS} hacia la respuesta · {texto}")
+
+
+def para_la_pregunta(texto):
+    """Cierre de cada hallazgo: por que lo mostramos y que hace con eso el resto de la historia."""
+    st.markdown(f"> **Qué aporta a la pregunta.** {texto}")
 
 
 def nombre(localidad):
@@ -119,7 +133,7 @@ def nivel_de_precios(datos, metrics, escala_moneda, escala_portal):
         x=alt.X("mensual:Q", bin=alt.Bin(maxbins=40), title="Alquiler mensual publicado ($)"),
         y=alt.Y("count():Q", title="Cantidad de avisos"),
         tooltip=[alt.Tooltip("count():Q", title="Avisos")],
-    ).properties(height=260, title="Distribución del alquiler mensual (sin el 1 % más caro)")
+    ).properties(height=300, title=["Distribución del alquiler mensual", "(sin el 1 % más caro)"])
     regla = alt.Chart(pd.DataFrame({"mediana": [float(mediana)]})).mark_rule(
         color="#d03b3b", strokeDash=[5, 5], size=2).encode(x="mediana:Q")
 
@@ -140,15 +154,15 @@ def nivel_de_precios(datos, metrics, escala_moneda, escala_portal):
                      alt.Tooltip("mediana_m2:Q", title="Mediana ($/m²)", format=",.0f"),
                      alt.Tooltip("mediana_mensual:Q", title="Mediana mensual ($)", format=",.0f"),
                      alt.Tooltip("superficie:Q", title="Superficie mediana (m²)", format=",.0f")])
-        + base_portales.mark_text(align="right", dx=-8, color="white", fontWeight="bold").encode(
+        + base_portales.mark_text(align="right", dx=-8, color="white", fontWeight="bold", fontSize=14).encode(
             text=alt.Text("mediana_m2:Q", format=",.0f"))
-    ).properties(height=alt.Step(52), title="Precio por m² según el portal donde se publica")
+    ).properties(height=alt.Step(60), title=["Precio por m² según el portal", "donde se publica"])
 
     c_hist, c_portal = st.columns([1.2, 1])
     with c_hist:
-        st.altair_chart(histograma + regla, width="stretch")
+        mostrar(histograma + regla, width="stretch")
     with c_portal:
-        st.altair_chart(grafico_portales, width="stretch")
+        mostrar(grafico_portales, width="stretch")
 
     caro = portales.sort_values("mediana_m2", ascending=False).iloc[0]
     barato = portales.sort_values("mediana_m2", ascending=False).iloc[-1]
@@ -164,6 +178,11 @@ def nivel_de_precios(datos, metrics, escala_moneda, escala_portal):
         f"**La diferencia que sí importa es la moneda:** los {miles(len(usd))} avisos en dólares piden "
         f"{pct(usd.precio_m2.median() / ars.precio_m2.median() - 1)} más por m² que los "
         f"{miles(len(ars))} en pesos."
+    )
+    para_la_pregunta(
+        "Para decir que un aviso está caro primero hay que saber cuánto se pide en general: esta banda es la vara "
+        "inicial. Y como la moneda cambia mucho el precio por m² (el portal casi no), el modelo recibe la moneda "
+        "como dato y los comparables se buscan siempre dentro de la misma moneda."
     )
     st.info(
         "**Lo que estos datos no pueden responder.** Con una ventana de cinco semanas "
@@ -201,31 +220,45 @@ def ubicacion(datos, escala_etiqueta, aporte_zona=None):
 
     mapa = json.loads((DATA / "departamentos_gran_mendoza.geojson").read_text(encoding="utf-8"))
     geo = datos.dropna(subset=["latitud", "longitud"]).copy()
-    zona = geo[geo.longitud.between(-69.1, -68.5) & geo.latitud.between(-33.17, -32.62)]
+    zona = geo[geo.longitud.between(-69.1, -68.5) & geo.latitud.between(-33.17, -32.62)].copy()
+    zona["orden_mapa"] = zona.etiqueta.ne("En linea").astype(int)
+    # Encuadre: el rectangulo donde cae el 98 % de los avisos (sin los extremos), no los
+    # departamentos enteros. Lujan y Las Heras llegan a la cordillera y dejaban los puntos
+    # amontonados en una esquina del mapa.
+    oeste, este = zona.longitud.quantile([.01, .99])
+    sur, norte = zona.latitud.quantile([.01, .99])
+    encuadre = {"type": "Feature", "properties": {}, "geometry": {"type": "MultiPoint", "coordinates": [
+        [float(oeste), float(sur)], [float(este), float(norte)]]}}
     limites = alt.Chart(alt.Data(values=mapa["features"])).mark_geoshape(
-        fill="#e8e8e4", stroke="#a5aaa5", strokeWidth=0.8).encode(
+        fill="#e8e8e4", stroke="#a5aaa5", strokeWidth=0.8, clip=True).encode(
             tooltip=[alt.Tooltip("properties.departamento:N", title="Departamento")])
-    puntos = alt.Chart(zona).mark_circle(size=16, opacity=.65).encode(
+    puntos = alt.Chart(zona).mark_circle(size=38, opacity=.75, stroke="white", strokeWidth=0.4, clip=True).encode(
         longitude="longitud:Q", latitude="latitud:Q",
-        color=alt.Color("etiqueta:N", scale=escala_etiqueta, title="Comparación"),
+        color=alt.Color("comparacion:N", scale=escala_etiqueta, title="Comparación",
+                        legend=alt.Legend(orient="bottom", direction="horizontal")),
+        # los que se apartan van arriba, para que no los tape la masa de avisos con precio acorde
+        order=alt.Order("orden_mapa:Q"),
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
+                 alt.Tooltip("comparacion:N", title="Comparación"),
                  alt.Tooltip("precio_m2:Q", title="Publicado ($/m²)", format=",.0f"),
                  alt.Tooltip("precio_m2_predicho:Q", title="Referencia ($/m²)", format=",.0f"),
                  alt.Tooltip("residuo_relativo:Q", title="Diferencia", format="+.1%")])
-    mapa_chart = (limites + puntos).project(type="mercator").properties(
-        height=320, title=f"Gran Mendoza: {miles(len(zona))} avisos geolocalizados según su diferencia con el modelo"
+    mapa_chart = (limites + puntos).project(type="mercator", fit=encuadre).properties(
+        height=420, title="Gran Mendoza: dónde cae cada aviso"
     )
 
     c_bar, c_map = st.columns([1, 1.25])
     with c_bar:
-        st.altair_chart(grafico, width="stretch")
+        mostrar(grafico, width="stretch")
         st.caption(
             f"Localidades con al menos 50 avisos. {nombre(lider.localidad)} (${miles(lider.mediana)}/m²) supera "
             f"en un {pct(brecha_loc)} a {nombre(ultima.localidad)} (${miles(ultima.mediana)}/m²)."
         )
     with c_map:
-        st.altair_chart(mapa_chart, width="stretch")
-        st.caption("Límites: [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina). Los puntos muestran cómo se distribuyen los avisos en línea, sobrevalorados y oportunidades.")
+        mostrar(mapa_chart, width="stretch")
+        st.caption(f"{miles(len(zona))} avisos geolocalizados, coloreados según su diferencia con el modelo. "
+                   "Límites: [departamentos de Argentina](https://github.com/mgaitan/departamentos_argentina). Los puntos muestran cómo se distribuyen los avisos con precio acorde, sobrevalorados y oportunidades; "
+                   "los que se apartan se dibujan encima. El encuadre muestra la zona donde está el 98 % de los avisos.")
 
     zonas(datos, aporte_zona)
 
@@ -264,7 +297,13 @@ def zonas(datos, aporte_zona=None):
                  alt.Tooltip("distancia:Q", title="Distancia mediana al centro (km)", format=".1f"),
                  alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")],
     ).properties(height=30 * len(etiquetas) + 60, title="Mediana por zona geográfica (zonas con al menos 30 avisos)")
-    st.altair_chart(grafico_zonas, width="stretch")
+    mostrar(grafico_zonas, width="stretch")
+    para_la_pregunta(
+        "La segunda mitad de la pregunta es **dónde** se concentran los desfases. Para responderla necesitamos "
+        "saber cuánto cambia el precio entre localidades y entre zonas: un aviso de Chacras no se puede juzgar con "
+        "la vara de Las Heras. Por eso el modelo recibe la localidad, la zona, la distancia y la densidad de avisos "
+        "vecinos, y los comparables se buscan siempre en la misma localidad."
+    )
     if aporte_zona is not None:
         st.caption(
             f"Honestidad sobre el aporte: una vez que el modelo ya tiene la distancia al centro y la densidad "
@@ -277,7 +316,8 @@ def zonas(datos, aporte_zona=None):
 def ajuste(datos, test_metrics):
     prueba = datos[datos.particion.eq("test")].copy()
     limite = max(prueba.precio_m2.max(), prueba.precio_m2_predicho.max())
-    puntos = alt.Chart(prueba).mark_circle(size=24, opacity=.45, color="#2a78d6").encode(
+    puntos = alt.Chart(prueba).mark_circle(size=42, opacity=.55, color="#2a78d6", stroke="white",
+                                           strokeWidth=0.4).encode(
         x=alt.X("precio_m2:Q", title="Precio publicado ($/m²)", scale=alt.Scale(domain=[0, limite])),
         y=alt.Y("precio_m2_predicho:Q", title="Precio estimado por el modelo ($/m²)", scale=alt.Scale(domain=[0, limite])),
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
@@ -325,14 +365,14 @@ def ajuste(datos, test_metrics):
 
     col_diag, col_q = st.columns([1.15, 1])
     with col_diag:
-        st.altair_chart(
+        mostrar(
             (puntos + diagonal).properties(
                 height=360, title=f"Precio publicado vs. estimado ({miles(len(prueba))} avisos de prueba)"
             ).interactive(),
             width="stretch",
         )
     with col_q:
-        st.altair_chart(chart_quintiles, width="stretch")
+        mostrar(chart_quintiles, width="stretch")
 
     st.caption(
         f"{miles(len(prueba))} avisos de prueba. R²: {r2_score(prueba.precio_m2, prueba.precio_m2_predicho):.2f}; "
@@ -459,7 +499,7 @@ def que_mueve_el_precio(datos, csv_origen=None, banda=(40, 90)):
                  alt.Tooltip("mediana_sin:Q", title="Mediana sin ($/m²)", format=",.0f"),
                  alt.Tooltip("efecto:Q", title="Diferencia", format="+.1%")],
     ).properties(height=30 * len(efectos) + 60, title="Efecto de cada característica sobre la mediana del precio por m²")
-    st.altair_chart(grafico, width="stretch")
+    mostrar(grafico, width="stretch")
     st.caption(
         f"Medido sobre {miles(len(muestra))} avisos de {banda[0]} a {banda[1]} m². Son diferencias de mediana entre "
         "grupos, no efectos aislados: las características aparecen juntas (un departamento a estrenar también suele "
@@ -470,6 +510,7 @@ def que_mueve_el_precio(datos, csv_origen=None, banda=(40, 90)):
 def casos(datos, cortes, csv_origen=None):
     fuera = int((~datos.etiqueta.eq("En linea")).sum())
     st.header("Los casos: dónde y por qué algunos avisos se apartan de la referencia")
+    paso(4, "aplicamos la referencia del modelo a cada aviso y vemos cuáles se apartan, dónde y por qué.")
     st.markdown(
         f"Son **{miles(fuera)} avisos** sobre {miles(len(datos))}. "
         "Para responder cuándo un alquiler está sobrevalorado o es una oportunidad, combinamos dos pasos: "
@@ -516,7 +557,7 @@ def casos(datos, cortes, csv_origen=None):
             alt.Tooltip("proporcion:Q", title="Proporción", format=".1%"),
         ],
     ).properties(height=250)
-    st.altair_chart(graf, width="stretch")
+    mostrar(graf, width="stretch")
     if not localidades.empty:
         homogeneas = localidades.assign(
             en_linea=1 - localidades.arriba - localidades.abajo).sort_values("en_linea", ascending=False)
@@ -526,8 +567,8 @@ def casos(datos, cortes, csv_origen=None):
             f"encima del corte) y **{nombre(segunda.localidad)}** ({pct(segunda.arriba, 1)}) conviven "
             "departamentos estándar con zonas de alto poder adquisitivo (Quinta y Sexta Sección, Chacras de "
             f"Coria, Dalvian). En mercados más homogéneos como **{nombre(mas.localidad)}** "
-            f"({pct(mas.en_linea, 1)} en línea) y **{nombre(segunda_mas.localidad)}** "
-            f"({pct(segunda_mas.en_linea, 1)} en línea), los precios se apartan mucho menos."
+            f"({pct(mas.en_linea, 1)} con precio acorde) y **{nombre(segunda_mas.localidad)}** "
+            f"({pct(segunda_mas.en_linea, 1)}), los precios se apartan mucho menos."
         )
 
     factores_sobre = [
@@ -580,7 +621,7 @@ def casos(datos, cortes, csv_origen=None):
             alt.Tooltip("proporcion:Q", title="% Sobrevalorado", format=".1%"),
         ],
     ).properties(height=190, title="Por qué el modelo marca más avisos caros en ciertos segmentos")
-    st.altair_chart(chart_factores, width="stretch")
+    mostrar(chart_factores, width="stretch")
     st.caption(
         "Ojo con la lectura: acá no medimos qué encarece un departamento, sino qué avisos se apartan de la "
         "referencia. Una cochera encarece el alquiler, pero el modelo ya la conoce y por eso no genera sobreprecio; "
@@ -613,7 +654,7 @@ def casos(datos, cortes, csv_origen=None):
             tooltip=[alt.Tooltip("grupo:N", title=variable), alt.Tooltip("avisos:Q", title="Avisos"),
                      alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f")]
         ).properties(height=max(130, min(260, 30 * len(grupos))))
-        st.altair_chart(barras, width="stretch")
+        mostrar(barras, width="stretch")
         st.caption(f"Avisos de {localidad}, entre 40 y 90 m². Permite ver qué características suben o bajan la mediana en esa zona.")
 
     grupos_prueba = datos[datos.particion.eq("test")].groupby("etiqueta")
@@ -624,7 +665,7 @@ def casos(datos, cortes, csv_origen=None):
             precio=("precio_m2", "median"), predicho=("precio_m2_predicho", "median")
         ).reset_index()
         st.dataframe(
-            resumen.rename(columns={
+            resumen.assign(etiqueta=resumen.etiqueta.map(NOMBRE_COMPARACION)).rename(columns={
                 "etiqueta": "Clasificación",
                 "avisos": "Avisos (test)",
                 "superficie": "Superficie mediana (m²)",
@@ -680,7 +721,7 @@ def casos(datos, cortes, csv_origen=None):
                 f"- **Referencia del modelo:** ${miles(aviso.precio_m2_predicho)}/m² ({porcentaje(aviso.residuo_relativo)})\n"
                 f"- **Mediana de {miles(len(grupo))} comparables:** ${miles(mediana)}/m² (**{pct(diferencia)} {direccion}**)"
             )
-            st.altair_chart(
+            mostrar(
                 grafico_comparacion_aviso(aviso.precio_m2, aviso.precio_m2_predicho, mediana, len(grupo), lado),
                 width="stretch",
             )
@@ -694,77 +735,78 @@ def casos(datos, cortes, csv_origen=None):
 
 
 def respuesta(datos, cortes, metrics):
-    """El cierre del relato: la respuesta a la pregunta con la que abre la app."""
+    """El cierre del relato: junta lo que aporto cada paso y responde la pregunta de la portada."""
     st.header("La respuesta")
+    paso(6, "juntamos todo lo anterior y respondemos la pregunta.")
     total = len(datos)
     en_linea = datos.etiqueta.eq("En linea").sum()
     sobre = datos.etiqueta.eq("Sobrevalorado").sum()
     opor = datos.etiqueta.eq("Oportunidad").sum()
     test = metrics["test"]
-    st.subheader("Un alquiler está sobrevalorado cuando se aparta de sus equivalentes más de lo que "
-                 "el modelo se equivoca, y sus vecinos lo confirman")
-    st.markdown(
-        f"En números: cuando pide más de un **{pct(cortes['alto'], 1)}** por encima de lo que piden sus "
-        f"equivalentes (o más de un **{pct(abs(cortes['bajo']), 1)}** por debajo, para una oportunidad). "
-        "Esa definición no es arbitraria: los dos cortes son los percentiles 10 y 90 del error que el "
-        "modelo comete **en validación**, sobre avisos que nunca vio. Dicho de otro modo: un aviso recién se "
-        "considera fuera de precio cuando se aparta más de lo que el propio modelo se equivoca normalmente. "
-        f"Dentro de esa banda —el margen de error honesto de una estimación de ${miles(test['mae_modelo'])}/m²— "
-        "no afirmamos nada."
-    )
-
-    st.markdown("#### 1. En conjunto, el mercado es consistente consigo mismo")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("En línea con sus equivalentes", pct(en_linea / total, 1))
-    c1.caption(f"{miles(en_linea)} de {miles(total)} avisos.")
-    c2.metric("Sobrevalorados", pct(sobre / total, 1))
-    c2.caption(f"{miles(sobre)} avisos piden más de lo que pide el resto del mercado por lo mismo.")
-    c3.metric("Oportunidades", pct(opor / total, 1))
-    c3.caption(f"{miles(opor)} avisos piden menos.")
-    st.markdown(
-        f"**No encontramos un mercado inflado de punta a punta:** {pct(en_linea / total, 1)} de los avisos pide "
-        "lo que piden los departamentos equivalentes, y los que se apartan están repartidos casi en partes "
-        f"iguales hacia arriba ({pct(sobre / total, 1)}) y hacia abajo ({pct(opor / total, 1)}). Lo que hay no "
-        "es un sobreprecio general, sino **bolsones de sobreprecio** bien localizados."
-    )
-
     localidades = (datos.assign(arriba=datos.etiqueta.eq("Sobrevalorado"))
                    .groupby("localidad", as_index=False)
                    .agg(avisos=("clave", "size"), arriba=("arriba", "mean"))
                    .query("avisos >= 50").sort_values("arriba", ascending=False))
-    usd = datos[datos.moneda.eq("USD")]
-    st.markdown("#### 2. Dónde están y por qué")
+    usd, ars = datos[datos.moneda.eq("USD")], datos[datos.moneda.eq("ARS")]
+    primera, segunda = localidades.iloc[0], localidades.iloc[1]
+
     st.markdown(
-        f"- **Por zona:** {nombre(localidades.iloc[0].localidad)} ({pct(localidades.iloc[0].arriba, 1)} de sus "
-        f"avisos por encima del corte) y {nombre(localidades.iloc[1].localidad)} "
-        f"({pct(localidades.iloc[1].arriba, 1)}) concentran los sobreprecios, porque mezclan departamentos "
-        "estándar con barrios de alto poder adquisitivo que el aviso no declara.\n"
-        f"- **Por segmento:** publicar en dólares es el mayor marcador de sobreprecio "
-        f"({pct(usd.etiqueta.eq('Sobrevalorado').mean(), 1)} de esos avisos, contra "
-        f"{pct(datos[datos.moneda.eq('ARS')].etiqueta.eq('Sobrevalorado').mean(), 1)} de los publicados en pesos).\n"
-        "- **Por lo que no se puede ver:** las características que quedan fuera de la ficha estructurada "
-        "—amoblado, equipado, a estrenar, descritas solo en el texto libre— duplican la probabilidad de que un "
-        "aviso quede por encima del corte. El modelo no las conoce, así que las cobra como sobreprecio."
+        "> *¿Cuándo un alquiler en Mendoza está realmente sobrevalorado (o es una oportunidad) y dónde se "
+        "concentran esos desfases?*"
     )
+    st.subheader("Un alquiler está sobrevalorado cuando se aparta de sus equivalentes más de lo que "
+                 "el modelo se equivoca, y sus vecinos lo confirman")
+    with st.container(border=True):
+        st.markdown(
+            f"**Cuándo.** Un aviso está **sobrevalorado** cuando pide más de un **{pct(cortes['alto'], 1)}** "
+            f"por encima de lo que piden departamentos equivalentes, y es una **oportunidad** cuando pide más de "
+            f"un **{pct(abs(cortes['bajo']), 1)}** por debajo. Además, sus vecinos comparables (misma localidad, "
+            "moneda y dormitorios, con superficie parecida) tienen que apuntar en la misma dirección.\n\n"
+            f"**Dónde.** En **{nombre(primera.localidad)}** ({pct(primera.arriba, 1)} de sus avisos) y "
+            f"**{nombre(segunda.localidad)}** ({pct(segunda.arriba, 1)}), en los avisos **publicados en dólares** "
+            f"({pct(usd.etiqueta.eq('Sobrevalorado').mean(), 1)} contra "
+            f"{pct(ars.etiqueta.eq('Sobrevalorado').mean(), 1)} en pesos) y en los que destacan en el texto "
+            "atributos que la ficha no registra (amoblado, equipado, a estrenar).\n\n"
+            f"**En conjunto**, el mercado no está inflado de punta a punta: {pct(en_linea / total, 1)} de los avisos "
+            f"tiene precio acorde, y los que se apartan se reparten casi por igual hacia arriba "
+            f"({pct(sobre / total, 1)}) y hacia abajo ({pct(opor / total, 1)})."
+        )
+
+    st.markdown("#### Cómo llegamos: lo que aportó cada paso")
     st.markdown(
-        "Y acá está el matiz que nos obliga a ser honestos: **parte de lo que el modelo marca como sobreprecio "
-        "es valor real que el aviso no publica en forma de dato.** Por eso la app no cierra el veredicto con la "
-        "estimación: lo contrasta con los avisos comparables y deja el enlace a la publicación original para "
-        "que cualquiera verifique si ese sobreprecio corresponde a una cocina nueva o a una expectativa del "
-        "propietario."
+        f"1. **Los datos.** {miles(total)} avisos de Inmoclick e InmoUP, relevados entre el "
+        f"{metrics['dataset']['ventana_inicio']} y el {metrics['dataset']['ventana_fin']}, limpios y llevados a "
+        "una sola moneda. Esa es la base contra la que se compara cada aviso.\n"
+        "2. **Lo que encontramos.** El precio depende del tamaño (el m² de un departamento chico es más caro), de "
+        "la moneda y de dónde está (localidad, zona y distancia al centro, que no siguen una línea recta). Por eso "
+        "comparar precios crudos no sirve: hay que comparar contra equivalentes.\n"
+        f"3. **El modelo.** Estima el precio de cada aviso a partir de lo que publica y erra "
+        f"${miles(test['mae_modelo'])}/m² en promedio, un {pct(test['mejora_vs_mejor_piso_pct'])} menos que la "
+        "mejor regla simple. Su propio margen de error define los cortes: son los percentiles 10 y 90 del error "
+        "**en validación**, sobre avisos que el modelo no vio al entrenar. Dentro de esa banda no afirmamos nada.\n"
+        "4. **Los casos.** Los avisos que superan los cortes se contrastan con sus vecinos comparables. Así vimos "
+        "dónde se concentran y qué tienen en común.\n"
+        "5. **Explorá y probá el modelo.** El mismo criterio queda a tu alcance: podés filtrar el mercado o cargar "
+        "un aviso concreto y ver de qué lado de los cortes cae."
     )
 
-    st.markdown("#### 3. Qué harías con esto")
+    st.markdown("#### El matiz")
     st.markdown(
-        "Si estás mirando un aviso concreto, la respuesta útil no es el promedio del mercado sino su propio "
-        "número: andá a **Probá el modelo**, cargá sus características y su precio, y mirá las tres barras "
-        "—lo que pide, lo que piden sus equivalentes y la mediana de sus vecinos directos. Si querés recorrer el "
-        "mercado por tu cuenta y buscar tus propios patrones, **Explorá los avisos** te deja cambiar los ejes y "
-        "filtrar por zona, moneda, portal y veredicto."
+        "**Parte de lo que el modelo marca como sobreprecio es valor real que el aviso no publica en forma de "
+        "dato.** Lo que se cuenta solo en el texto libre (una cocina nueva, muebles, a estrenar) el modelo no lo "
+        "puede ver, así que lo cuenta como sobreprecio. Por eso la app no cierra el veredicto con la estimación: lo "
+        "contrasta con los comparables y deja el enlace a la publicación original para que cualquiera verifique "
+        "si ese sobreprecio corresponde a algo concreto o a una expectativa del propietario."
     )
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Precio acorde", pct(en_linea / total, 1))
+    c1.caption(f"{miles(en_linea)} de {miles(total)} avisos piden lo mismo que sus equivalentes.")
+    c2.metric("Sobrevalorados", pct(sobre / total, 1))
+    c2.caption(f"{miles(sobre)} avisos piden más de lo que pide el resto del mercado por lo mismo.")
+    c3.metric("Oportunidades", pct(opor / total, 1))
+    c3.caption(f"{miles(opor)} avisos piden menos.")
     st.caption(
-        f"Todo el recorrido se apoya en {miles(total)} avisos de Inmoclick e InmoUP relevados entre el "
-        f"{metrics['dataset']['ventana_inicio']} y el {metrics['dataset']['ventana_fin']}, un modelo "
-        f"HistGradientBoosting con {len(metrics['columnas_finales'])} características y una validación agrupada "
-        "por firma de inmueble para que ningún departamento se evalúe con su propia copia."
+        f"Todo el recorrido se apoya en {miles(total)} avisos, un modelo HistGradientBoosting con "
+        f"{len(metrics['columnas_finales'])} características y una validación agrupada por firma de inmueble "
+        "para que ningún departamento se evalúe con su propia copia."
     )

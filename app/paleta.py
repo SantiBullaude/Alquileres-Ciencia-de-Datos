@@ -36,3 +36,32 @@ def resaltar(valores, focos):
     dominio = [str(valor) for valor in valores]
     focos = {str(clave): color for clave, color in focos.items()}
     return alt.Scale(domain=dominio, range=[focos.get(valor, GRIS_APAGADO) for valor in dominio])
+
+
+# Nombre que ve el usuario para cada veredicto. La clave interna del dataset
+# sigue siendo "En linea"; en pantalla decimos "Precio acorde" porque describe
+# lo que significa: el aviso pide lo mismo que sus equivalentes.
+NOMBRE_COMPARACION = {"Sobrevalorado": "Sobrevalorado", "En linea": "Precio acorde",
+                      "Oportunidad": "Oportunidad"}
+ORDEN_COMPARACION = list(NOMBRE_COMPARACION.values())
+ESCALA_COMPARACION = alt.Scale(
+    domain=ORDEN_COMPARACION,
+    range=[COLORES_COMPARACION[clave] for clave in NOMBRE_COMPARACION],
+)
+
+
+def mostrar(grafico, **kwargs):
+    """st.altair_chart con la misma tipografia en todos los graficos.
+
+    Letra mas grande que la de Vega por defecto (11 px) para que ejes,
+    leyendas y titulos se lean en una proyeccion o en una pantalla chica.
+    """
+    import streamlit as st
+
+    grafico = (
+        grafico.configure_axis(labelFontSize=13, titleFontSize=14, titlePadding=10, labelLimit=260)
+        .configure_legend(labelFontSize=13, titleFontSize=14, symbolSize=140, labelLimit=260)
+        .configure_title(fontSize=16, anchor="start", offset=12)
+        .configure_header(labelFontSize=13, titleFontSize=14)
+    )
+    return st.altair_chart(grafico, **kwargs)

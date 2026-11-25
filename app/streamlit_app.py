@@ -30,6 +30,8 @@ from analisis_entrega4 import (
     mostrar_comparables,
     nivel_de_precios,
     nombre,
+    para_la_pregunta,
+    paso,
     pct,
     respuesta,
     ubicacion,
@@ -43,8 +45,12 @@ from paleta import (
     COLORES_OTROS,
     COLOR_FOCO,
     COLOR_FOCO_2,
+    ESCALA_COMPARACION,
     GRIS_APAGADO,
+    NOMBRE_COMPARACION,
+    ORDEN_COMPARACION,
     escala,
+    mostrar,
     resaltar,
 )
 
@@ -54,10 +60,9 @@ DATA = Path(__file__).resolve().parent / "data"
 COLOR_SOBREVALORADO = COLORES_COMPARACION["Sobrevalorado"]   # status: critical
 COLOR_EN_LINEA = COLORES_COMPARACION["En linea"]        # status: neutral
 COLOR_OPORTUNIDAD = COLORES_COMPARACION["Oportunidad"]     # status: good
-ESCALA_ETIQUETA = alt.Scale(
-    domain=["Sobrevalorado", "En linea", "Oportunidad"],
-    range=[COLOR_SOBREVALORADO, COLOR_EN_LINEA, COLOR_OPORTUNIDAD],
-)
+# Los graficos colorean por `comparacion` (el nombre que ve el usuario);
+# `etiqueta` queda como clave interna del dataset.
+ESCALA_ETIQUETA = ESCALA_COMPARACION
 COLOR_ARS = COLORES_MONEDA["ARS"]   # categorico slot 1
 COLOR_USD = COLORES_MONEDA["USD"]   # categorico slot 2
 ESCALA_MONEDA = alt.Scale(domain=["ARS", "USD"], range=[COLOR_ARS, COLOR_USD])
@@ -145,6 +150,7 @@ def cargar_todo():
 metrics, rangos, modelo, explo = cargar_todo()
 explo = explo.copy()
 explo["precio_mensual_ars"] = explo["precio_m2"] * explo["superficie_cubierta_m2"]
+explo["comparacion"] = explo["etiqueta"].map(NOMBRE_COMPARACION)
 
 st.set_page_config(page_title="¿Esta sobrevalorado?", layout="wide")
 
@@ -152,10 +158,43 @@ st.markdown("""
 <style>
 .stVegaLiteChart:has(> .vega-bindings select) {display: flex; flex-direction: column;}
 .stVegaLiteChart:has(> .vega-bindings select) > .vega-bindings {order: -1; margin-bottom: 0.75rem;}
+/* Recorrido de la sidebar: en lugar del punto del radio, una barra que sigue la seccion que se esta leyendo */
+[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div {
+  border-left: 3px solid transparent; padding: 0.15rem 0 0.15rem 0.6rem; border-radius: 2px;
+  transition: border-color .2s, background-color .2s;
+}
+[data-testid="stSidebar"] [data-testid="stRadioOption"] > div > div:first-child:not([data-testid]) {display: none;}
+[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div {cursor: pointer;}
+[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div[data-activa="true"] {
+  border-left-color: #2a78d6; background-color: rgba(42, 120, 214, 0.08);
+}
+[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div[data-activa="true"] [data-testid="stRadioOption"] p {
+  font-weight: 600; color: #2a78d6;
+}
 </style>
 """, unsafe_allow_html=True)
 
-SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "La respuesta", "Explora", "Proba el modelo"]
+SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "Explora", "Proba el modelo", "La respuesta"]
+NOMBRES_SECCIONES = {
+    "El proyecto": "La pregunta",
+    "Los datos": "1 · Los datos",
+    "Lo que encontramos": "2 · Lo que encontramos",
+    "El modelo": "3 · El modelo",
+    "Los casos": "4 · Los casos",
+    "Explora": "5 · Explorá los avisos",
+    "Proba el modelo": "5 · Probá el modelo",
+    "La respuesta": "6 · La respuesta",
+}
+RESUMEN_SECCIONES = [
+    "Qué queremos responder",
+    "Qué avisos juntamos",
+    "Qué mueve el precio",
+    "La referencia de cada aviso",
+    "Qué avisos se apartan y dónde",
+    "Filtrá el mercado vos",
+    "Cargá un aviso y juzgalo",
+    "Juntamos todo y respondemos",
+]
 ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "La respuesta": "respuesta", "Explora": "explora", "Proba el modelo": "simulador"}
 
 
@@ -163,13 +202,23 @@ def ir_a_seccion():
     st.session_state["destino_pendiente"] = ANCLAS[st.session_state["navegacion"]]
 
 
-st.sidebar.radio("La historia se lee en orden. Acá las preguntas las hacés vos.", SECCIONES,
-                 key="navegacion", on_change=ir_a_seccion)
-st.sidebar.markdown("---")
+st.sidebar.markdown("### Brújula Inmobiliaria")
+st.sidebar.caption("Alquileres de departamentos en el Gran Mendoza")
+st.sidebar.radio("Recorrido", SECCIONES, key="navegacion", on_change=ir_a_seccion,
+                 format_func=NOMBRES_SECCIONES.get, captions=RESUMEN_SECCIONES)
+st.sidebar.caption("La historia se lee en orden, de la pregunta a la respuesta. En el paso 5 las preguntas las "
+                   "hacés vos.")
+st.sidebar.divider()
+st.sidebar.markdown(
+    "**Proyecto Integrador · Ciencia de Datos 2026**  \n"
+    "UTN FRM · Grupo 5k10-09"
+)
 st.sidebar.caption(
-    "Proyecto Integrador - Ciencia de Datos 2026 (UTN FRM)\n\n"
-    "Grupo 5k10-09 - Gustavo Santino Giovannini, Rodrigo Luis Vargas, "
-    "Renzo Sahade, Garcia Zacarias, Santiago Bullaude"
+    "Gustavo Santino Giovannini  \n"
+    "Rodrigo Luis Vargas  \n"
+    "Renzo Sahade  \n"
+    "Garcia Zacarias  \n"
+    "Santiago Bullaude"
 )
 
 
@@ -188,11 +237,23 @@ def portada():
             .groupby("localidad", as_index=False).agg(avisos=("clave", "size"), arriba=("arriba", "mean"))
             .query("avisos >= 50").sort_values("arriba", ascending=False))
     st.markdown(
-        f"**Casi 8 de cada 10 avisos piden lo que corresponde a su tamaño y ubicación, pero en "
+        "La pregunta tiene dos partes: **cuándo** un aviso pide de más (o de menos) y **dónde** pasa. "
+        "Para responderla recorremos una historia en pasos, y cada uno resuelve algo que el siguiente necesita:"
+    )
+    st.markdown(
+        "1. **Los datos:** qué avisos juntamos y cuáles quedaron después de limpiarlos.\n"
+        "2. **Lo que encontramos:** qué mueve el precio (tamaño, distancia, ubicación) y por lo tanto qué hay "
+        "que controlar antes de comparar.\n"
+        "3. **El modelo:** una referencia de precio para cada aviso, que le gana a las reglas simples.\n"
+        "4. **Los casos:** qué avisos se apartan de esa referencia, dónde están y por qué.\n"
+        "5. **Explorá y probá el modelo:** el mismo criterio, aplicado por vos a los avisos que quieras.\n"
+        "6. **La respuesta:** al final, juntamos todo lo anterior y respondemos la pregunta."
+    )
+    st.markdown(
+        f"Como punto de partida, así queda repartido el mercado cuando aplicamos ese criterio. Casi 8 de cada 10 "
+        f"avisos piden lo que corresponde, y la proporción de sobreprecios se dispara en "
         f"{nombre(foco.iloc[0].localidad)} ({pct(foco.iloc[0].arriba, 1)}) y "
-        f"{nombre(foco.iloc[1].localidad).split(' ')[0]} ({pct(foco.iloc[1].arriba, 1)}) se dispara la "
-        f"proporción de alquileres que superan en más de un {pct(corte_alto)} tanto al modelo como a sus "
-        "vecinos comparables.**"
+        f"{nombre(foco.iloc[1].localidad).split(' ')[0]} ({pct(foco.iloc[1].arriba, 1)})."
     )
     st.markdown(
         f"Entrenamos un modelo con las características de cada aviso para estimar cuánto piden "
@@ -201,9 +262,10 @@ def portada():
         "se apartan lo suficiente como para auditarlos frente a sus comparables directos."
     )
     c1, c2, c3 = st.columns(3)
-    c1.metric("En línea", miles(dentro))
+    c1.metric("Precio acorde", miles(dentro))
     corte_bajo = metrics["cortes_residuo"]["bajo"]
-    c1.caption(f"Avisos dentro de los cortes de referencia ({pct(corte_bajo, 1)} a +{pct(corte_alto, 1)}).")
+    c1.caption(f"Piden lo mismo que sus equivalentes: entre {pct(corte_bajo, 1)} y +{pct(corte_alto, 1)} "
+               "de la referencia del modelo.")
     c2.metric("Por encima (Sobrevalorados)", miles(alto))
     c2.caption(f"Piden más de un {pct(corte_alto, 1)} por encima de la referencia del modelo.")
     c3.metric("Por debajo (Oportunidades)", miles(bajo))
@@ -219,6 +281,7 @@ def portada():
 # =============================================================================
 def los_datos():
     st.header("Los datos")
+    paso(1, "qué avisos juntamos y cuáles quedaron para comparar.")
     cantidades = explo["localidad"].fillna("Sin localidad").value_counts().rename_axis("localidad").reset_index(name="avisos")
     principales = cantidades.head(3)
     st.subheader("El mercado publicado se concentra en tres localidades")
@@ -242,13 +305,17 @@ def los_datos():
                         scale=resaltar(cantidades.localidad, principales.localidad.tolist())),
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"), alt.Tooltip("avisos:Q", title="Avisos")],
     ).properties(height=300)
-    st.altair_chart(grafico, width="stretch")
+    mostrar(grafico, width="stretch")
     sin_coordenadas = explo[["latitud", "longitud"]].isna().any(axis=1).sum()
     st.markdown(
         f"Después de aplicar las reglas de calidad quedaron **{miles(len(explo))}** de los "
         f"**{miles(metrics['dataset']['filas_totales'])}** avisos relevados ({miles(sin_coordenadas)} sin coordenadas "
         f"quedan fuera del mapa). Para comparar en una sola unidad, convertimos los "
         f"{metrics['dataset']['avisos_usd_convertidos']} avisos en dólares a pesos."
+    )
+    para_la_pregunta(
+        "Sin una base limpia no hay contra qué comparar. Además, la concentración en tres localidades anticipa "
+        "dónde el veredicto va a ser más firme (hay muchos comparables) y dónde hay que leerlo con cuidado."
     )
 
     with st.expander("Cómo lo sabemos"):
@@ -291,7 +358,7 @@ imposibles y agrupamos posibles duplicados por firma de inmueble al separar entr
             y=alt.Y("avisos_nuevos:Q", title="Avisos nuevos"),
             tooltip=["fecha_scraping", "avisos_nuevos", "avisos_acumulados"],
         ).properties(height=220)
-        st.altair_chart(chart_evo, width="stretch")
+        mostrar(chart_evo, width="stretch")
 
 
 
@@ -300,6 +367,18 @@ imposibles y agrupamos posibles duplicados por firma de inmueble al separar entr
 # =============================================================================
 def lo_que_encontramos():
     st.header("Lo que encontramos")
+    paso(2, "qué mueve el precio y, por lo tanto, qué hay que controlar antes de comparar.")
+    st.markdown(
+        "Para decir que un aviso está caro primero hay que saber **contra qué compararlo**. Esta sección no es un "
+        "inventario de datos: cada hallazgo responde una pregunta que el veredicto necesita resolver antes, y cada "
+        "respuesta se convierte en una decisión del modelo del paso siguiente."
+    )
+    st.markdown(
+        "- **¿Cuánto se pide hoy?** El nivel general de precios y si cambia según el portal o la moneda.\n"
+        "- **¿Cuánto pesa el tamaño?** Si el precio crece en proporción a los m² o no.\n"
+        "- **¿Importa la distancia al centro?** Si alejarse abarata siempre o depende del tipo de departamento.\n"
+        "- **¿Y el lugar?** Cuánto cambia el precio entre localidades y entre zonas de una misma localidad."
+    )
 
     nivel_de_precios(explo, metrics, ESCALA_MONEDA, escala(COLORES_PORTAL))
 
@@ -319,16 +398,32 @@ def lo_que_encontramos():
         "metros cuadrados."
     )
     base = alt.Chart(datos_superficie.sample(n=min(1500, len(datos_superficie)), random_state=42))
-    lineal = base.mark_circle(size=14, opacity=0.3, color=COLOR_ARS).encode(
-        x=alt.X("superficie_cubierta_m2:Q", title="Superficie cubierta (m²)"),
-        y=alt.Y("precio_mensual_ars:Q", title="Precio mensual ($)"),
-    ).properties(height=310, title="Escala lineal: la nube se abre en curva")
-    log = base.mark_circle(size=14, opacity=0.3, color=COLOR_ARS).encode(
-        x=alt.X("superficie_cubierta_m2:Q", scale=alt.Scale(type="log"), title="Superficie cubierta (m², log)"),
-        y=alt.Y("precio_mensual_ars:Q", scale=alt.Scale(type="log"), title="Precio mensual ($, log)"),
-    ).properties(height=310, title=f"Escala log-log: la relación se endereza (pendiente {pendiente_log:.2f})".replace(".", ",", 1))
-    st.altair_chart(lineal | log, width="stretch")
-    st.caption(f"Se muestran hasta 1.500 avisos en pesos de los {miles(len(datos_superficie))} incluidos en este análisis.")
+    puntos_sup = dict(size=34, opacity=0.35, color=COLOR_ARS, stroke="white", strokeWidth=0.3)
+    tooltip_sup = [alt.Tooltip("localidad:N", title="Localidad"),
+                   alt.Tooltip("superficie_cubierta_m2:Q", title="Superficie (m²)", format=",.0f"),
+                   alt.Tooltip("precio_mensual_ars:Q", title="Precio mensual ($)", format=",.0f")]
+    # la curva potencial y = a*x^b es la misma relacion en las dos escalas: curva en lineal, recta en log-log
+    tendencia = base.transform_regression(
+        "superficie_cubierta_m2", "precio_mensual_ars", method="pow"
+    ).mark_line(color=COLOR_FOCO_2, strokeWidth=3)
+    eje_x_lineal = alt.X("superficie_cubierta_m2:Q", title="Superficie cubierta (m²)")
+    eje_y_lineal = alt.Y("precio_mensual_ars:Q", title="Precio mensual ($)")
+    lineal = (base.mark_circle(**puntos_sup).encode(x=eje_x_lineal, y=eje_y_lineal, tooltip=tooltip_sup)
+              + tendencia.encode(x=eje_x_lineal, y=eje_y_lineal)
+              ).properties(height=340, title="Escala lineal: la nube se abre en curva")
+    eje_x_log = alt.X("superficie_cubierta_m2:Q", scale=alt.Scale(type="log"), title="Superficie cubierta (m², log)")
+    eje_y_log = alt.Y("precio_mensual_ars:Q", scale=alt.Scale(type="log"), title="Precio mensual ($, log)")
+    log = (base.mark_circle(**puntos_sup).encode(x=eje_x_log, y=eje_y_log, tooltip=tooltip_sup)
+           + tendencia.encode(x=eje_x_log, y=eje_y_log)
+           ).properties(height=340, title="Escala log-log: la relación se endereza")
+    mostrar(alt.hconcat(lineal, log), width="stretch")
+    st.caption(f"Se muestran hasta 1.500 avisos en pesos de los {miles(len(datos_superficie))} incluidos en este análisis. "
+               f"La línea naranja es la tendencia (pendiente log-log de {dec(pendiente_log)}).")
+    para_la_pregunta(
+        "Si comparáramos el precio por m² sin controlar el tamaño, marcaríamos como caros a todos los "
+        "monoambientes y como oportunidades a todos los departamentos grandes. Por eso la superficie es una de las "
+        "columnas del modelo y los comparables se buscan con una superficie parecida (±20 %)."
+    )
 
     distancia = explo[(explo["moneda"] == "ARS") & explo["dist_centro_km"].between(0, 30)].dropna(subset=["dist_centro_km", "precio_m2"]).copy()
     correlacion_distancia = distancia["dist_centro_km"].corr(distancia["precio_m2"], method="spearman")
@@ -347,13 +442,22 @@ def lo_que_encontramos():
         "Godoy Cruz (Chacras, Dalvian, Palmares)."
     )
 
-    grafico_distancia = alt.Chart(distancia).mark_circle(size=14, opacity=.3, color=COLOR_ARS).encode(
-        x=alt.X("dist_centro_km:Q", title="Distancia a Plaza Independencia (km)"),
-        y=alt.Y("precio_m2:Q", title="Precio publicado ($/m²)"),
+    eje_x_dist = alt.X("dist_centro_km:Q", title="Distancia a Plaza Independencia (km)")
+    tope_dist = float(distancia["precio_m2"].quantile(0.99))
+    eje_y_dist = alt.Y("precio_m2:Q", title="Precio publicado ($/m²)",
+                       scale=alt.Scale(domain=[0, tope_dist], clamp=True))
+    nube_distancia = alt.Chart(distancia).mark_circle(
+        size=30, opacity=.3, color=COLOR_ARS, stroke="white", strokeWidth=0.3).encode(
+        x=eje_x_dist, y=eje_y_dist,
         tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
                  alt.Tooltip("dist_centro_km:Q", title="Distancia (km)", format=".1f"),
                  alt.Tooltip("precio_m2:Q", title="Precio ($/m²)", format=",.0f")]
-    ).properties(height=300, title=f"Vista global: parece plana (Spearman {dec(correlacion_distancia, 3)})").interactive()
+    )
+    tendencia_distancia = alt.Chart(distancia).transform_loess(
+        "dist_centro_km", "precio_m2", bandwidth=0.4
+    ).mark_line(color=COLOR_FOCO_2, strokeWidth=3).encode(x=eje_x_dist, y=eje_y_dist)
+    grafico_distancia = (nube_distancia + tendencia_distancia).properties(
+        height=360, title=["Vista global: la tendencia", "(naranja) casi no baja"]).interactive()
 
     h3_df = explo[explo["dist_centro_km"].between(0, 30)].dropna(subset=["dist_centro_km", "precio_m2", "superficie_cubierta_m2"]).copy()
     orden_sectores = ["hasta 40 m²", "40-55 m²", "55-75 m²", "75-100 m²", "más de 100 m²"]
@@ -374,8 +478,9 @@ def lo_que_encontramos():
     focos_u = {orden_sectores[0]: COLOR_FOCO}
     if tramo_u:
         focos_u[tramo_u] = COLOR_FOCO_2
-    grafico_u = alt.Chart(curvas_h3).mark_line(point=True, strokeWidth=2.5).encode(
-        x=alt.X("anillo_km:O", sort=orden_anillos, title="Anillo de distancia al centro", axis=alt.Axis(labelAngle=0)),
+    grafico_u = alt.Chart(curvas_h3).mark_line(point=alt.OverlayMarkDef(size=90, filled=True), strokeWidth=3).encode(
+        x=alt.X("anillo_km:O", sort=orden_anillos, title="Anillo de distancia al centro",
+                axis=alt.Axis(labelAngle=0, labelOverlap=False, labelFontSize=12)),
         y=alt.Y("mediana:Q", title="Mediana de precio ($/m²)", scale=alt.Scale(zero=False)),
         color=alt.Color(
             "sector_m2:O",
@@ -391,15 +496,21 @@ def lo_que_encontramos():
             alt.Tooltip("mediana:Q", title="Mediana ($/m²)", format=",.0f"),
             alt.Tooltip("avisos:Q", title="Avisos en celda"),
         ],
-    ).properties(height=300, title=(f"La caída en los chicos y la U de {tramo_u}" if tramo_u
-                                    else "Por tramo de superficie: caída en chicos y curva en U"))
+    ).properties(height=360, title="Por tamaño: caída y curva en U")
 
     c_d1, c_d2 = st.columns(2)
     with c_d1:
-        st.altair_chart(grafico_distancia, width="stretch")
+        mostrar(grafico_distancia, width="stretch")
     with c_d2:
-        st.altair_chart(grafico_u, width="stretch")
-    st.caption(f"{miles(len(distancia))} avisos en pesos a hasta 30 km del centro. Correlación de Spearman: {correlacion_distancia:.3f}.")
+        mostrar(grafico_u, width="stretch")
+    st.caption(f"{miles(len(distancia))} avisos en pesos a hasta 30 km del centro. Correlación de Spearman: {correlacion_distancia:.3f}. "
+               f"El eje vertical llega hasta ${miles(tope_dist)}/m² (el 99 % de los avisos); los pocos que lo superan "
+               "se dibujan sobre el borde superior.")
+    para_la_pregunta(
+        "La distancia no abarata en línea recta: depende del tamaño y hay barrios caros lejos del centro. Una regla "
+        "simple del tipo «más lejos, más barato» se equivocaría justo ahí. Por eso usamos un modelo de árboles, que "
+        "puede aprender esas curvas, en lugar de una recta."
+    )
 
     aportes = {fila["columna"]: fila["aumento_mae"] for fila in metrics["importancia_permutacion"]}
     ubicacion(explo, ESCALA_ETIQUETA, aportes.get("zona_geo"))
@@ -444,7 +555,7 @@ def lo_que_encontramos():
             f"en {nombre(top_usd[0])} y {nombre(top_usd[1])}."
         )
         por_moneda = explo.groupby("moneda", as_index=False).agg(avisos=("clave", "size"), mediana=("precio_m2", "median"))
-        st.altair_chart(alt.Chart(por_moneda).mark_bar().encode(
+        mostrar(alt.Chart(por_moneda).mark_bar().encode(
             color=alt.Color("moneda:N", scale=escala(COLORES_MONEDA), legend=None),
             x=alt.X("mediana:Q", title="Mediana convertida a pesos ($/m²)"),
             y=alt.Y("moneda:N", title="Moneda original"),
@@ -464,7 +575,7 @@ def lo_que_encontramos():
                 f"portal) frente a {pct(unidos['dormitorios'].isna().mean(), 1)} en `dormitorios`, por lo que el "
                 "modelo conserva `dormitorios`."
             )
-            st.altair_chart(alt.Chart(pares).mark_rect().encode(
+            mostrar(alt.Chart(pares).mark_rect().encode(
                 x=alt.X("dormitorios:O", title="Dormitorios"), y=alt.Y("ambientes:O", title="Ambientes"),
                 color=alt.Color("size:Q", title="Avisos", scale=alt.Scale(scheme="blues")),
                 tooltip=[alt.Tooltip("ambientes:O", title="Ambientes"), alt.Tooltip("dormitorios:O", title="Dormitorios"), alt.Tooltip("size:Q", title="Avisos")]
@@ -490,20 +601,58 @@ def lo_que_encontramos():
 # =============================================================================
 def el_modelo():
     st.header("El modelo")
+    paso(3, "una referencia de precio para cada aviso, contra la que después lo juzgamos.")
     test = metrics["test"]
+    esc = pd.DataFrame(metrics["escalera_pisos"])
+    st.markdown(
+        "Con lo que encontramos ya sabemos qué hay que controlar. El modelo hace eso para cada aviso: mira lo que "
+        "publica (superficie, dormitorios, ubicación, moneda...) y estima **cuánto piden los departamentos "
+        "equivalentes**. Esa estimación es la referencia contra la que se juzga el precio publicado. Antes de "
+        "confiar en ella, hay que demostrar que es mejor que una regla simple."
+    )
+
+    st.subheader("Qué es un piso y por qué lo necesitamos")
+    st.markdown(
+        "Un **piso** (en inglés, *baseline*) es la regla más simple que cualquiera podría usar para estimar un "
+        "alquiler **sin entrenar ningún modelo**. Por ejemplo: «a todos los departamentos les asigno el precio "
+        "por m² típico del mercado». Es la vara mínima: si un modelo no le gana a una regla tan simple, toda su "
+        "complejidad no aporta nada y no tendría sentido usarlo para juzgar avisos."
+    )
+    st.markdown(
+        "Un solo piso sería una vara demasiado baja: ganarle a «todos valen lo mismo» es fácil. Por eso armamos "
+        "una **escalera de pisos**: cada escalón es una regla de medianas que usa una columna más que el anterior "
+        "y por eso se equivoca menos. Así comprobamos que el modelo no gana solo porque conoce los m²."
+    )
+    explicacion_pisos = {
+        "P0": "A todos los avisos les asigna el mismo precio por m²: la mediana de todo el entrenamiento. "
+              "No sabe ni cuántos m² tiene el departamento.",
+        "P1": "Ordena los avisos por superficie, los parte en diez grupos del mismo tamaño (deciles) y a cada "
+              "aviso le asigna la mediana de su grupo. Ya sabe que un monoambiente no rinde igual que uno grande.",
+        "P3": "Igual que P1, pero separando además pesos y dólares. Si un grupo tiene menos de veinte avisos, usa "
+              "la regla anterior. Es el piso más exigente.",
+    }
+    filas_pisos = []
+    for fila in metrics["escalera_pisos"]:
+        clave = fila["escalon"].split(":", 1)[0]
+        filas_pisos.append({
+            "Escalón": fila["escalon"].split(" (", 1)[0].replace("Modelo: ", "Modelo · "),
+            "Qué hace": explicacion_pisos.get(
+                clave, f"Aprende de las {fila['columnas']} columnas a la vez y combina cientos de árboles de decisión."),
+            "Columnas que usa": fila["columnas"],
+            "Error medio en test ($/m²)": miles(fila["test_mae"]),
+            "Error relativo mediano": coma(fila["test_err_rel"]),
+        })
+    st.table(pd.DataFrame(filas_pisos).set_index("Escalón"))
+    st.caption("Error medio en test: cuántos $/m² se equivoca en promedio cada regla con avisos que no vio.")
+
     st.subheader("El modelo le gana a la mejor regla de medianas que conocemos")
     st.markdown(
-        f"Erra un **{pct(test['mejora_vs_mejor_piso_pct'])} menos** que esa regla y un "
-        f"**{pct(test['mejora_pct'])} menos** que la mediana global. "
-        "Un piso que solo predice la mediana global no sabe ni cuántos m² tiene "
-        "el departamento. Por eso armamos una **escalera de pisos** cada vez más "
-        "exigentes (medianas por tramo de superficie y por superficie × moneda) "
-        "y comparamos contra cuatro familias de modelos con la misma validación "
-        "por firma de inmueble; gana un **HistGradientBoosting** entrenado con "
+        f"Erra un **{pct(test['mejora_vs_mejor_piso_pct'])} menos** que el mejor piso (P3) y un "
+        f"**{pct(test['mejora_pct'])} menos** que la mediana global (P0). Comparamos cuatro familias de modelos "
+        "con la misma validación por firma de inmueble, y gana un **HistGradientBoosting** entrenado con "
         f"**{len(metrics['columnas_finales'])} características** para minimizar el error absoluto."
     )
 
-    esc = pd.DataFrame(metrics["escalera_pisos"])
     orden_esc = esc["escalon"].tolist()
     esc["grupo_color"] = esc["escalon"].map(lambda v: v.split(":", 1)[0] if not v.startswith("Modelo:") else "HistGradientBoosting")
     # el titulo compara el elegido contra el mejor piso: solo esos dos en color
@@ -520,8 +669,8 @@ def el_modelo():
             alt.Tooltip("test_mae:Q", title="MAE test", format=",.0f"),
             alt.Tooltip("test_err_rel:Q", title="Error relativo mediano (test)", format=".1%"),
         ],
-    ).properties(height=210, title="Escalera de pisos vs modelo final")
-    st.altair_chart(chart_esc, width="stretch")
+    ).properties(height=alt.Step(48), title="Escalera de pisos vs modelo final")
+    mostrar(chart_esc, width="stretch")
 
     comp = metrics["comparacion_modelos"]
     filas = []
@@ -537,7 +686,7 @@ def el_modelo():
         color=alt.Color("grupo_color:N", legend=None,
                         scale=resaltar(df_folds["grupo_color"].unique(), foco_modelos)),
     ).properties(height=300, title="15 folds agrupados por firma de inmueble, mismos folds para todos")
-    st.altair_chart(chart, width="stretch")
+    mostrar(chart, width="stretch")
     st.caption("En color, los dos que compara el título: el modelo elegido y el mejor piso de medianas. "
                "Conservan su color en ambos gráficos; el resto queda en gris, a modo de contexto.")
 
@@ -612,7 +761,7 @@ a la observada en test.
             x=alt.X("aumento_mae:Q", title="aumento del MAE al desordenar la columna ($/m²)"),
             y=alt.Y("columna:N", sort="-x", title=None),
         ).properties(height=260)
-        st.altair_chart(chart_imp, width="stretch")
+        mostrar(chart_imp, width="stretch")
 
         fuga = metrics["fuga_superficie"]
         st.markdown(f"""
@@ -638,16 +787,16 @@ concentra más avisos "Sobrevalorados" y el más barato más "Oportunidades",
 porque agrupar por el precio real junta en los extremos a los avisos que
 quedan por encima o por debajo de la estimación. En cambio, al cruzar por el quintil del
 **precio predicho** (lo único que conoce la app antes de saber cuánto pide el
-aviso), el reparto es equilibrado en todos los tramos (entre {min(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} y {max(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} en línea):
+aviso), el reparto es equilibrado en todos los tramos (entre {min(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} y {max(f["En linea"] for f in metrics["cruce_veredicto_tramo_predicho"]):.0%} con precio acorde):
 """)
         c_r, c_p = st.columns(2)
         with c_r:
             st.caption("Por quintil de precio real (incluye el residuo)")
-            df_cr = pd.DataFrame(metrics["cruce_veredicto_tramo_real"]).set_index("tramo")
+            df_cr = pd.DataFrame(metrics["cruce_veredicto_tramo_real"]).set_index("tramo").rename(columns=NOMBRE_COMPARACION)
             st.table(df_cr.map("{:.0%}".format))
         with c_p:
             st.caption("Por quintil de precio predicho (lo que ve la app)")
-            df_cp = pd.DataFrame(metrics["cruce_veredicto_tramo_predicho"]).set_index("tramo_predicho")
+            df_cp = pd.DataFrame(metrics["cruce_veredicto_tramo_predicho"]).set_index("tramo_predicho").rename(columns=NOMBRE_COMPARACION)
             st.table(df_cp.map("{:.0%}".format))
 
 
@@ -670,10 +819,10 @@ def grafico_exploracion(datos):
     eje_y = alt.param(name="eje_y", value=columnas[2], bind=alt.binding_select(options=columnas, labels=nombres, name="Eje vertical: "))
     seleccion = alt.selection_interval(name="seleccion", empty=True)
     base = alt.Chart(datos).transform_calculate(valor_x="datum[eje_x]", valor_y="datum[eje_y]")
-    puntos = base.mark_circle(size=42, opacity=.75).encode(
+    puntos = base.mark_circle(size=55, opacity=.75, stroke="white", strokeWidth=0.4).encode(
         x=alt.X("valor_x:Q", title="Eje horizontal", scale=alt.Scale(zero=False)),
         y=alt.Y("valor_y:Q", title="Eje vertical", scale=alt.Scale(zero=False)),
-        color=alt.Color("etiqueta:N", scale=ESCALA_ETIQUETA, legend=alt.Legend(title="Comparación con la referencia", orient="bottom", columns=1)),
+        color=alt.Color("comparacion:N", scale=ESCALA_ETIQUETA, legend=alt.Legend(title="Comparación con la referencia", orient="bottom", direction="horizontal")),
         opacity=alt.condition(seleccion, alt.value(.8), alt.value(.12)),
         tooltip=[alt.Tooltip("direccion:N", title="Dirección"), alt.Tooltip("localidad:N", title="Localidad"),
                  alt.Tooltip("superficie_cubierta_m2:Q", title="Superficie (m²)"),
@@ -683,19 +832,20 @@ def grafico_exploracion(datos):
                  alt.Tooltip("precio_m2:Q", title="Publicado (ARS/m²)", format=",.0f"),
                  alt.Tooltip("precio_m2_predicho:Q", title="Referencia (ARS/m²)", format=",.0f"),
                  alt.Tooltip("residuo_relativo:Q", title="Diferencia", format="+.1%"),
-                 alt.Tooltip("etiqueta:N", title="Comparación")],
-    ).properties(height=400).add_params(eje_x, eje_y, seleccion)
+                 alt.Tooltip("comparacion:N", title="Comparación")],
+    ).properties(height=420).add_params(eje_x, eje_y, seleccion)
     resumen = alt.Chart(datos).transform_filter(seleccion).mark_bar().encode(
         x=alt.X("count():Q", title="Cantidad de avisos"),
-        y=alt.Y("etiqueta:N", title=None, sort=["Sobrevalorado", "En linea", "Oportunidad"]),
-        color=alt.Color("etiqueta:N", scale=ESCALA_ETIQUETA, legend=None),
-        tooltip=[alt.Tooltip("etiqueta:N", title="Comparación"), alt.Tooltip("count():Q", title="Avisos")],
-    ).properties(height=110, title="Avisos dentro de la selección")
+        y=alt.Y("comparacion:N", title=None, sort=ORDEN_COMPARACION),
+        color=alt.Color("comparacion:N", scale=ESCALA_ETIQUETA, legend=None),
+        tooltip=[alt.Tooltip("comparacion:N", title="Comparación"), alt.Tooltip("count():Q", title="Avisos")],
+    ).properties(height=130, title="Avisos dentro de la selección")
     return alt.vconcat(puntos, resumen).resolve_scale(color="shared")
 
 
 def explora():
     st.header("Explorá los avisos")
+    paso(5, "el mismo criterio, aplicado por vos al mercado que te interese.")
     st.markdown("Elegí qué avisos querés ver y compará sus características. Pasá el cursor por un punto para consultar el precio y la referencia del modelo.")
     st.markdown(
         "Para seguir uno de los casos, filtrá su localidad y buscá departamentos de "
@@ -726,7 +876,7 @@ def explora():
     with col_comparacion:
         comparaciones = st.multiselect("Comparación con la referencia", ["Sobrevalorado", "En linea", "Oportunidad"],
                                        placeholder="Todos los avisos", key="explora_comparacion",
-                                       format_func=lambda v: "En línea" if v == "En linea" else v)
+                                       format_func=lambda v: NOMBRE_COMPARACION.get(v, v))
     st.button("Limpiar filtros", on_click=limpiar_filtros, key="limpiar_exploracion")
     mascara = explo["superficie_cubierta_m2"].between(*rango_sup)
     if localidades:
@@ -743,13 +893,13 @@ def explora():
         st.info("No encontramos avisos con esa combinación. Probá cambiar algún filtro.")
         return
     st.markdown("Cambiá los ejes en los controles del gráfico. Arrastrá sobre los puntos para seleccionar una zona: las barras de abajo cuentan esos avisos. Hacé doble clic para volver a ver todos.")
-    st.altair_chart(grafico_exploracion(filtrado), width="stretch")
+    mostrar(grafico_exploracion(filtrado), width="stretch")
     with st.expander("Ver los avisos de estos filtros"):
         orden = st.selectbox("Ordenar por", ["Mayor precio por m²", "Menor precio por m²", "Mayor diferencia con la referencia", "Menor diferencia con la referencia"])
         columna = "precio_m2" if "precio" in orden else "residuo_relativo"
         vista = filtrado.sort_values(columna, ascending=orden.startswith("Menor")).head(50).copy()
         vista["residuo_relativo"] = vista["residuo_relativo"] * 100
-        st.dataframe(vista[["localidad", "superficie_cubierta_m2", "dormitorios", "precio_m2", "residuo_relativo", "etiqueta", "url"]].rename(columns={"localidad": "Localidad", "superficie_cubierta_m2": "m²", "dormitorios": "Dormitorios", "precio_m2": "Precio (ARS/m²)", "residuo_relativo": "Diferencia", "etiqueta": "Comparación", "url": "Aviso"}), hide_index=True, width="stretch", column_config={"Diferencia": st.column_config.NumberColumn(format="%.1f%%"), "Aviso": st.column_config.LinkColumn("Aviso", display_text="Abrir")})
+        st.dataframe(vista[["localidad", "superficie_cubierta_m2", "dormitorios", "precio_m2", "residuo_relativo", "comparacion", "url"]].rename(columns={"localidad": "Localidad", "superficie_cubierta_m2": "m²", "dormitorios": "Dormitorios", "precio_m2": "Precio (ARS/m²)", "residuo_relativo": "Diferencia", "comparacion": "Comparación", "url": "Aviso"}), hide_index=True, width="stretch", column_config={"Diferencia": st.column_config.NumberColumn(format="%.1f%%"), "Aviso": st.column_config.LinkColumn("Aviso", display_text="Abrir")})
         st.caption("Se muestran hasta 50 avisos de los filtros elegidos. La selección del gráfico modifica las barras, no esta tabla.")
     st.caption("La referencia de cada aviso se calculó sin usar ese aviso para entrenar. Los cortes se obtuvieron de las diferencias en validación.")
 
@@ -759,6 +909,7 @@ def explora():
 # =============================================================================
 def proba_el_modelo():
     st.header("Probá el modelo")
+    paso(5, "el criterio de la respuesta, aplicado a un aviso que elijas.")
     st.markdown(
         "Cargá las características de un departamento para estimar su alquiler por m². "
         "El formulario ofrece categorías y rangos que vienen del conjunto de entrenamiento."
@@ -839,7 +990,7 @@ def proba_el_modelo():
             elif residuo < corte_bajo:
                 veredicto, clave_veredicto, color = "Oportunidad", "Oportunidad", COLOR_OPORTUNIDAD
             else:
-                veredicto, clave_veredicto, color = "En línea con la referencia", "En linea", COLOR_EN_LINEA
+                veredicto, clave_veredicto, color = "Precio acorde a sus equivalentes", "En linea", COLOR_EN_LINEA
             st.markdown(
                 f"Pide **{precio_m2_real:,.0f} $/m²** ({residuo:+.0%} contra lo esperado): "
                 f"<span style='color:{color}; font-weight:700'>{veredicto}</span>".replace(",", "."),
@@ -852,7 +1003,7 @@ def proba_el_modelo():
             st.caption("El precio puede depender de características que no figuran en el aviso o que el modelo no conoce.")
             grupo = comparables(explo, valores.get("localidad"), valores.get("moneda"), superficie, valores.get("dormitorios"))
             mediana_comp = grupo.precio_m2.median() if not grupo.empty else None
-            st.altair_chart(
+            mostrar(
                 grafico_comparacion_aviso(precio_m2_real, pred, mediana_comp, len(grupo), clave_veredicto),
                 width="stretch",
             )
@@ -870,7 +1021,7 @@ def proba_el_modelo():
 
 
 def ancla(nombre):
-    st.markdown(f'<span id="{nombre}"></span>', unsafe_allow_html=True)
+    st.markdown(f'<span id="{nombre}" style="display:block; scroll-margin-top:4.5rem"></span>', unsafe_allow_html=True)
 
 
 ORIGEN_CSV = Path(__file__).resolve().parent.parent / metrics["dataset"]["csv"]
@@ -886,12 +1037,53 @@ el_modelo()
 ajuste(explo, metrics["test"])
 ancla("casos")
 casos(explo, metrics["cortes_residuo"], ORIGEN_CSV)
-ancla("respuesta")
-respuesta(explo, metrics["cortes_residuo"], metrics)
 ancla("explora")
 explora()
 ancla("simulador")
 proba_el_modelo()
+ancla("respuesta")
+respuesta(explo, metrics["cortes_residuo"], metrics)
+
+# La sidebar sigue al scroll: marca la seccion que se esta leyendo y, al hacer clic en una,
+# baja hasta ella sin recargar la app. Vive en la ventana de la app, asi que se instala una vez.
+components.html("""<script>
+(function () {
+  const P = window.parent, D = P.document;
+  P.__anclasRecorrido = %s;
+  if (P.__espiaRecorrido) return;
+  P.__espiaRecorrido = true;
+  const opciones = () => Array.from(D.querySelectorAll('[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div'));
+  const enRecorrido = (e) => e.target.closest && e.target.closest('[data-testid="stSidebar"] [data-testid="stRadioGroup"] > div');
+  function marcar() {
+    const anclas = P.__anclasRecorrido, main = D.querySelector('[data-testid="stMain"]');
+    if (!main) return;
+    const limite = main.getBoundingClientRect().top + main.clientHeight * 0.35;
+    let activa = 0;
+    anclas.forEach((id, i) => {
+      const el = D.getElementById(id);
+      if (el && el.getBoundingClientRect().top <= limite) activa = i;
+    });
+    if (main.scrollTop + main.clientHeight >= main.scrollHeight - 4) activa = anclas.length - 1;
+    opciones().forEach((op, i) => {
+      const valor = i === activa ? "true" : "false";
+      if (op.getAttribute("data-activa") !== valor) op.setAttribute("data-activa", valor);
+    });
+  }
+  ["pointerdown", "pointerup", "mousedown", "mouseup", "touchstart", "touchend"].forEach((tipo) =>
+    P.addEventListener(tipo, (e) => { if (enRecorrido(e)) e.stopPropagation(); }, true));
+  P.addEventListener("click", (e) => {
+    const op = enRecorrido(e);
+    if (!op) return;
+    e.preventDefault(); e.stopPropagation();
+    const i = opciones().indexOf(op);
+    const destino = D.getElementById(P.__anclasRecorrido[i]);
+    if (destino) destino.scrollIntoView({behavior: "smooth", block: "start"});
+  }, true);
+  D.addEventListener("scroll", marcar, true);
+  P.setInterval(marcar, 500);
+  marcar();
+})();
+</script>""" % json.dumps([ANCLAS[s] for s in SECCIONES]), height=0)
 
 if "destino_pendiente" in st.session_state:
     destino = st.session_state.pop("destino_pendiente")
