@@ -63,7 +63,7 @@
     "mae_std": 83.0
   },
   "mejor_piso": {
-    "nombre": "P3 (mediana superficie x moneda)",
+    "nombre": "P2 (mediana superficie x moneda)",
     "mae_mean": 2285.0,
     "mae_std": 110.0
   },
@@ -87,7 +87,7 @@
       "test_err_rel": 0.1587
     },
     {
-      "escalon": "P3: Mediana superficie x moneda (2 col)",
+      "escalon": "P2: Mediana superficie x moneda (2 col)",
       "regla": "Mediana por decil de superficie y moneda (respaldo jerarquico)",
       "columnas": 2,
       "cv_mae": 2285.0,
@@ -155,7 +155,7 @@
       ]
     },
     {
-      "modelo": "P3 (mediana sup x moneda)",
+      "modelo": "P2 (mediana sup x moneda)",
       "mae_mean": 2285.0,
       "mae_std": 110.0,
       "mejora_vs_piso": 0.1431,
@@ -291,7 +291,7 @@
       "folds_totales": 15
     },
     {
-      "contra": "P3 (mediana sup x moneda)",
+      "contra": "P2 (mediana sup x moneda)",
       "gana_por": 535.0,
       "desvio_diferencia": 81.0,
       "folds_gana": 15,
