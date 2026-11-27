@@ -628,7 +628,7 @@ def el_modelo():
               "No sabe ni cuántos m² tiene el departamento.",
         "P1": "Ordena los avisos por superficie, los parte en diez grupos del mismo tamaño (deciles) y a cada "
               "aviso le asigna la mediana de su grupo. Ya sabe que un monoambiente no rinde igual que uno grande.",
-        "P3": "Igual que P1, pero separando además pesos y dólares. Si un grupo tiene menos de veinte avisos, usa "
+        "P2": "Igual que P1, pero separando además pesos y dólares. Si un grupo tiene menos de veinte avisos, usa "
               "la regla anterior. Es el piso más exigente.",
     }
     filas_pisos = []
@@ -647,7 +647,7 @@ def el_modelo():
 
     st.subheader("El modelo le gana a la mejor regla de medianas que conocemos")
     st.markdown(
-        f"Erra un **{pct(test['mejora_vs_mejor_piso_pct'])} menos** que el mejor piso (P3) y un "
+        f"Erra un **{pct(test['mejora_vs_mejor_piso_pct'])} menos** que el mejor piso (P2) y un "
         f"**{pct(test['mejora_pct'])} menos** que la mediana global (P0). Comparamos cuatro familias de modelos "
         "con la misma validación por firma de inmueble, y gana un **HistGradientBoosting** entrenado con "
         f"**{len(metrics['columnas_finales'])} características** para minimizar el error absoluto."
@@ -658,13 +658,13 @@ def el_modelo():
     nombres_modelos = {
         "P0": "P0 · Mediana global",
         "P1": "P1 · Mediana por\nsuperficie",
-        "P3": "P3 · Mediana por\nsuperficie y moneda",
+        "P2": "P2 · Mediana por\nsuperficie y moneda",
     }
     eje_modelos = alt.Axis(labelExpr="split(datum.label, '\\n')", labelLimit=0,
                            labelFontSize=13, labelLineHeight=16, labelPadding=10)
     esc["nombre_modelo"] = esc["grupo_color"].map(lambda v: nombres_modelos.get(v, v))
     # el titulo compara el elegido contra el mejor piso: solo esos dos en color
-    foco_modelos = {"HistGradientBoosting": COLOR_FOCO, "P3": COLOR_FOCO_2}
+    foco_modelos = {"HistGradientBoosting": COLOR_FOCO, "P2": COLOR_FOCO_2}
     chart_esc = alt.Chart(esc).mark_bar().encode(
         x=alt.X("test_mae:Q", title="MAE en test ($/m²) — menos es mejor"),
         y=alt.Y("nombre_modelo:N", sort=esc["nombre_modelo"].tolist(), title=None, axis=eje_modelos),
@@ -686,7 +686,7 @@ def el_modelo():
         for v in m["folds"]:
             filas.append({"modelo": m["modelo"], "mae": v})
     df_folds = pd.DataFrame(filas)
-    df_folds["grupo_color"] = df_folds["modelo"].map(lambda v: v.split(" ", 1)[0] if v.startswith(("P0 ", "P1 ", "P3 ")) else v)
+    df_folds["grupo_color"] = df_folds["modelo"].map(lambda v: v.split(" ", 1)[0] if v.startswith(("P0 ", "P1 ", "P2 ")) else v)
     df_folds["nombre_modelo"] = df_folds["grupo_color"].map(lambda v: nombres_modelos.get(v, v))
     orden = (df_folds.groupby("nombre_modelo")["mae"].mean()
              .sort_values(ascending=False).index.tolist())
@@ -715,7 +715,7 @@ calculan **solo con el fold de entrenamiento**, y si un grupo tiene menos de 20
 avisos cae al nivel anterior):
 - **P0 (mediana global, 0 col):** {miles(metrics['piso']['mae_mean'])} ± {miles(metrics['piso']['mae_std'])} $/m² en CV ({miles(test['mae_piso'])} en test).
 - **P1 (mediana por decil de superficie, 1 col):** {miles(metrics['piso_superficie']['mae_mean'])} ± {miles(metrics['piso_superficie']['mae_std'])} $/m² en CV ({miles(test['mae_piso_superficie'])} en test).
-- **P3 (mediana por superficie × moneda, 2 col, mejor piso):** {miles(metrics['mejor_piso']['mae_mean'])} ± {miles(metrics['mejor_piso']['mae_std'])} $/m² en CV ({miles(test['mae_mejor_piso'])} en test).
+- **P2 (mediana por superficie × moneda, 2 col, mejor piso):** {miles(metrics['mejor_piso']['mae_mean'])} ± {miles(metrics['mejor_piso']['mae_std'])} $/m² en CV ({miles(test['mae_mejor_piso'])} en test).
 
 **Cómo se armó la validación.** El mismo departamento puede estar publicado
 en los dos portales; si una copia cae en entrenamiento y la otra en
@@ -751,7 +751,7 @@ ayuda poco, menos que el desvío entre folds).
 
 **El resultado en test**, medido una sola vez: MAE
 **{miles(test['mae_modelo'])} $/m²** contra **{miles(test['mae_mejor_piso'])}**
-del mejor piso P3 ({test['mejora_vs_mejor_piso_pct']:.0%} menos error) y
+del mejor piso P2 ({test['mejora_vs_mejor_piso_pct']:.0%} menos error) y
 **{miles(test['mae_piso'])}** de la mediana global ({test['mejora_pct']:.0%}
 menos error). Error relativo mediano:
 {coma(test['error_relativo_mediano_modelo'])} contra
