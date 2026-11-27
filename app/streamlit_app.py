@@ -286,34 +286,48 @@ def los_datos():
     localidades = ", ".join(principales.localidad.iloc[:-1]) + " y " + principales.localidad.iloc[-1]
     localidades = localidades.replace("Guaymallen", "Guaymallén")
     n_principales = principales.avisos.sum()
+    localidades_gran_mendoza = ["Capital", "Godoy Cruz", "Guaymallen", "Lujan de Cuyo", "Las Heras", "Maipu"]
+    n_gran_mendoza = int(explo["localidad"].isin(localidades_gran_mendoza).sum())
+    n_otras = len(explo) - n_gran_mendoza
     st.markdown(
-        f"Reunimos avisos de Inmoclick e InmoUP entre el {metrics['dataset']['ventana_inicio']} "
-        f"y el {metrics['dataset']['ventana_fin']}. Cada fila representa una publicación: "
-        "si una misma propiedad se publica en ambos portales, aparece en dos filas que agrupamos al validar."
+        f"Reunimos publicaciones de departamentos en alquiler de Inmoclick e InmoUP entre el "
+        f"{metrics['dataset']['ventana_inicio']} y el {metrics['dataset']['ventana_fin']}. "
+        "Cada fila representa un aviso, y la localidad indica dónde se ofrece el inmueble. "
+        "Una misma propiedad puede aparecer en ambos portales."
     )
     st.markdown(
-        f"{localidades} suman **{miles(n_principales)} avisos**: el "
-        f"**{pct(n_principales / len(explo))} de la muestra**. "
-        "Esa concentración explica dónde el modelo y las búsquedas cuentan con más comparables directos."
+        f"{localidades} reúnen **{miles(n_principales)} avisos**, el "
+        f"**{pct(n_principales / len(explo))} de la muestra**. Al sumar Luján de Cuyo, "
+        f"Las Heras y Maipú, estas seis localidades representan el "
+        f"**{pct(n_gran_mendoza / len(explo), 1)}**. Las demás localidades aportan "
+        f"solamente **{miles(n_otras)} publicaciones**."
     )
-    grafico = alt.Chart(cantidades).mark_bar().encode(
-        x=alt.X("avisos:Q", title="Cantidad de avisos"),
-        y=alt.Y("localidad:N", title=None, sort="-x", axis=alt.Axis(labelLimit=150)),
+    cantidades["proporcion"] = cantidades["avisos"] / len(explo)
+    cantidades["rotulo"] = cantidades.apply(
+        lambda fila: f"{miles(fila.avisos)} · "
+        + ("<0,1 %" if fila.proporcion < 0.001 else pct(fila.proporcion, 1)), axis=1
+    )
+    base = alt.Chart(cantidades).encode(
+        x=alt.X("avisos:Q", title="Cantidad de avisos",
+                scale=alt.Scale(domain=[0, int(cantidades.avisos.max()) * 1.28])),
+        y=alt.Y("localidad:N", title=None, sort=cantidades.localidad.tolist(),
+                axis=alt.Axis(labelLimit=150)),
+        tooltip=[alt.Tooltip("localidad:N", title="Localidad"),
+                 alt.Tooltip("avisos:Q", title="Avisos"),
+                 alt.Tooltip("proporcion:Q", title="Porcentaje de la muestra", format=".1%")],
+    )
+    barras = base.mark_bar().encode(
         color=alt.Color("localidad:N", legend=None,
                         scale=resaltar(cantidades.localidad, principales.localidad.tolist())),
-        tooltip=[alt.Tooltip("localidad:N", title="Localidad"), alt.Tooltip("avisos:Q", title="Avisos")],
-    ).properties(height=300)
-    mostrar(grafico, width="stretch")
+    )
+    rotulos = base.mark_text(align="left", dx=6, fontSize=13, color=GRIS_APAGADO).encode(text="rotulo:N")
+    mostrar((barras + rotulos).properties(height=330), width="stretch")
     sin_coordenadas = explo[["latitud", "longitud"]].isna().any(axis=1).sum()
     st.markdown(
         f"Después de aplicar las reglas de calidad quedaron **{miles(len(explo))}** de los "
         f"**{miles(metrics['dataset']['filas_totales'])}** avisos relevados ({miles(sin_coordenadas)} sin coordenadas "
         f"quedan fuera del mapa). Para comparar en una sola unidad, convertimos los "
         f"{metrics['dataset']['avisos_usd_convertidos']} avisos en dólares a pesos."
-    )
-    para_la_pregunta(
-        "Sin una base limpia no hay contra qué comparar. Además, la concentración en tres localidades anticipa "
-        "dónde el veredicto va a ser más firme (hay muchos comparables) y dónde hay que leerlo con cuidado."
     )
 
     with st.expander("Cómo lo sabemos"):
