@@ -37,14 +37,6 @@ ACENTOS = {"Guaymallen": "Guaymallén", "Lujan de Cuyo": "Luján de Cuyo", "Maip
            "General alvear": "General Alvear"}
 
 
-TOTAL_PASOS = 6
-
-
-def paso(numero, texto):
-    """Ubica la seccion dentro de la historia: que paso es y que le aporta a la pregunta."""
-    st.caption(f"Paso {numero} de {TOTAL_PASOS} hacia la respuesta · {texto}")
-
-
 def para_la_pregunta(texto):
     """Cierre de cada hallazgo: por que lo mostramos y que hace con eso el resto de la historia."""
     st.markdown(f"> **Qué aporta a la pregunta.** {texto}")
@@ -510,7 +502,6 @@ def que_mueve_el_precio(datos, csv_origen=None, banda=(40, 90)):
 def casos(datos, cortes, csv_origen=None):
     fuera = int((~datos.etiqueta.eq("En linea")).sum())
     st.header("Los casos: dónde y por qué algunos avisos se apartan de la referencia")
-    paso(4, "aplicamos la referencia del modelo a cada aviso y vemos cuáles se apartan, dónde y por qué.")
     st.markdown(
         f"Son **{miles(fuera)} avisos** sobre {miles(len(datos))}. "
         "Para responder cuándo un alquiler está sobrevalorado o es una oportunidad, combinamos dos pasos: "
@@ -737,7 +728,6 @@ def casos(datos, cortes, csv_origen=None):
 def respuesta(datos, cortes, metrics):
     """El cierre del relato: junta lo que aporto cada paso y responde la pregunta de la portada."""
     st.header("La respuesta")
-    paso(5, "juntamos todo lo anterior y respondemos la pregunta.")
     total = len(datos)
     en_linea = datos.etiqueta.eq("En linea").sum()
     sobre = datos.etiqueta.eq("Sobrevalorado").sum()

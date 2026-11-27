@@ -31,7 +31,6 @@ from analisis_entrega4 import (
     nivel_de_precios,
     nombre,
     para_la_pregunta,
-    paso,
     pct,
     respuesta,
     ubicacion,
@@ -281,7 +280,6 @@ def portada():
 # =============================================================================
 def los_datos():
     st.header("Los datos")
-    paso(1, "qué avisos juntamos y cuáles quedaron para comparar.")
     cantidades = explo["localidad"].fillna("Sin localidad").value_counts().rename_axis("localidad").reset_index(name="avisos")
     principales = cantidades.head(3)
     st.subheader("El mercado publicado se concentra en tres localidades")
@@ -367,7 +365,6 @@ imposibles y agrupamos posibles duplicados por firma de inmueble al separar entr
 # =============================================================================
 def lo_que_encontramos():
     st.header("Lo que encontramos")
-    paso(2, "qué mueve el precio y, por lo tanto, qué hay que controlar antes de comparar.")
     st.markdown(
         "Para decir que un aviso está caro primero hay que saber **contra qué compararlo**. Esta sección no es un "
         "inventario de datos: cada hallazgo responde una pregunta que el veredicto necesita resolver antes, y cada "
@@ -601,7 +598,6 @@ def lo_que_encontramos():
 # =============================================================================
 def el_modelo():
     st.header("El modelo")
-    paso(3, "una referencia de precio para cada aviso, contra la que después lo juzgamos.")
     test = metrics["test"]
     esc = pd.DataFrame(metrics["escalera_pisos"])
     st.markdown(
@@ -845,7 +841,6 @@ def grafico_exploracion(datos):
 
 def explora():
     st.header("Explorá los avisos")
-    paso(6, "el mismo criterio, aplicado por vos al mercado que te interese.")
     st.markdown("Elegí qué avisos querés ver y compará sus características. Pasá el cursor por un punto para consultar el precio y la referencia del modelo.")
     st.markdown(
         "Para seguir uno de los casos, filtrá su localidad y buscá departamentos de "
@@ -909,7 +904,6 @@ def explora():
 # =============================================================================
 def proba_el_modelo():
     st.header("Probá el modelo")
-    paso(6, "el criterio de la respuesta, aplicado a un aviso que elijas.")
     st.markdown(
         "Cargá las características de un departamento para estimar su alquiler por m². "
         "El formulario ofrece categorías y rangos que vienen del conjunto de entrenamiento."
