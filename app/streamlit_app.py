@@ -663,13 +663,21 @@ def el_modelo():
         f"**{len(metrics['columnas_finales'])} características** para minimizar el error absoluto."
     )
 
-    orden_esc = esc["escalon"].tolist()
     esc["grupo_color"] = esc["escalon"].map(lambda v: v.split(":", 1)[0] if not v.startswith("Modelo:") else "HistGradientBoosting")
+    # Etiquetas comunes a las dos comparaciones, en varias líneas para que no se recorten.
+    nombres_modelos = {
+        "P0": "P0 · Mediana global",
+        "P1": "P1 · Mediana por\nsuperficie",
+        "P3": "P3 · Mediana por\nsuperficie y moneda",
+    }
+    eje_modelos = alt.Axis(labelExpr="split(datum.label, '\\n')", labelLimit=0,
+                           labelFontSize=13, labelLineHeight=16, labelPadding=10)
+    esc["nombre_modelo"] = esc["grupo_color"].map(lambda v: nombres_modelos.get(v, v))
     # el titulo compara el elegido contra el mejor piso: solo esos dos en color
     foco_modelos = {"HistGradientBoosting": COLOR_FOCO, "P3": COLOR_FOCO_2}
     chart_esc = alt.Chart(esc).mark_bar().encode(
         x=alt.X("test_mae:Q", title="MAE en test ($/m²) — menos es mejor"),
-        y=alt.Y("escalon:N", sort=orden_esc, title=None),
+        y=alt.Y("nombre_modelo:N", sort=esc["nombre_modelo"].tolist(), title=None, axis=eje_modelos),
         color=alt.Color("grupo_color:N", legend=None,
                         scale=resaltar(esc["grupo_color"].unique(), foco_modelos)),
         tooltip=[
@@ -688,14 +696,19 @@ def el_modelo():
         for v in m["folds"]:
             filas.append({"modelo": m["modelo"], "mae": v})
     df_folds = pd.DataFrame(filas)
-    orden = [m["modelo"] for m in sorted(comp, key=lambda d: d["mae_mean"], reverse=True)]
     df_folds["grupo_color"] = df_folds["modelo"].map(lambda v: v.split(" ", 1)[0] if v.startswith(("P0 ", "P1 ", "P3 ")) else v)
+    df_folds["nombre_modelo"] = df_folds["grupo_color"].map(lambda v: nombres_modelos.get(v, v))
+    orden = (df_folds.groupby("nombre_modelo")["mae"].mean()
+             .sort_values(ascending=False).index.tolist())
     chart = alt.Chart(df_folds).mark_boxplot(size=22).encode(
         x=alt.X("mae:Q", title="MAE por fold ($/m²) — menos es mejor"),
-        y=alt.Y("modelo:N", sort=orden, title=None),
+        y=alt.Y("nombre_modelo:N", sort=orden, title=None, axis=eje_modelos),
         color=alt.Color("grupo_color:N", legend=None,
                         scale=resaltar(df_folds["grupo_color"].unique(), foco_modelos)),
-    ).properties(height=300, title="15 folds agrupados por firma de inmueble, mismos folds para todos")
+        tooltip=[alt.Tooltip("modelo:N", title="Modelo"),
+                 alt.Tooltip("mae:Q", title="MAE del fold ($/m²)", format=",.0f")],
+    ).properties(height=alt.Step(48), title=["15 folds agrupados por firma de inmueble",
+                                            "Mismos folds para todos los modelos"])
     mostrar(chart, width="stretch")
     st.caption("En color, los dos que compara el título: el modelo elegido y el mejor piso de medianas. "
                "Conservan su color en ambos gráficos; el resto queda en gris, a modo de contexto.")
