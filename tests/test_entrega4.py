@@ -68,7 +68,7 @@ class AppEntrega4Test(unittest.TestCase):
         self.app.button(key="limpiar_exploracion").click().run()
         self.assertEqual(self.app.multiselect(key="explora_localidad").value, [])
         self.assertTrue(any("3.364 avisos con estos filtros" in c.value for c in self.app.caption))
-        self.campo("radio", "La historia se lee en orden. Acá las preguntas las hacés vos.").set_value("Los casos").run()
+        self.campo("radio", "Recorrido").set_value("Los casos").run()
         self.assertFalse(self.app.exception)
         self.assertEqual(self.app.session_state["navegacion"], "Los casos")
 
@@ -82,7 +82,7 @@ class AppEntrega4Test(unittest.TestCase):
         # el corte va en el cuerpo, no en el titulo
         self.assertTrue(any(corte in m.value for m in self.app.markdown),
                         f"ningun texto trae el corte {corte}")
-        radio = self.campo("radio", "La historia se lee en orden. Acá las preguntas las hacés vos.")
+        radio = self.campo("radio", "Recorrido")
         radio.set_value("La respuesta").run()
         self.assertFalse(self.app.exception)
         self.assertEqual(self.app.session_state["navegacion"], "La respuesta")
