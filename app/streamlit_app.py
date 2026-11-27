@@ -181,7 +181,7 @@ NOMBRES_SECCIONES = {
     "El modelo": "3 · El modelo",
     "Los casos": "4 · Los casos",
     "Explora": "6 · Explorá los avisos",
-    "Proba el modelo": "6 · Probá el modelo",
+    "Proba el modelo": "7 · Probá el modelo",
     "La respuesta": "5 · La respuesta",
 }
 ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "La respuesta": "respuesta", "Explora": "explora", "Proba el modelo": "simulador"}
