@@ -236,29 +236,19 @@ def portada():
             .groupby("localidad", as_index=False).agg(avisos=("clave", "size"), arriba=("arriba", "mean"))
             .query("avisos >= 50").sort_values("arriba", ascending=False))
     st.markdown(
-        "La pregunta tiene dos partes: **cuándo** un aviso pide de más (o de menos) y **dónde** pasa. "
-        "Para responderla recorremos una historia en pasos, y cada uno resuelve algo que el siguiente necesita:"
-    )
-    st.markdown(
-        "1. **Los datos:** qué avisos juntamos y cuáles quedaron después de limpiarlos.\n"
-        "2. **Lo que encontramos:** qué mueve el precio (tamaño, distancia, ubicación) y por lo tanto qué hay "
-        "que controlar antes de comparar.\n"
-        "3. **El modelo:** una referencia de precio para cada aviso, que le gana a las reglas simples.\n"
-        "4. **Los casos:** qué avisos se apartan de esa referencia, dónde están y por qué.\n"
-        "5. **La respuesta:** juntamos todo lo anterior y respondemos la pregunta.\n"
-        "6. **Explorá y probá el modelo:** después del cierre, aplicá el mismo criterio a los avisos que quieras."
-    )
-    st.markdown(
-        f"Como punto de partida, así queda repartido el mercado cuando aplicamos ese criterio. Casi 8 de cada 10 "
-        f"avisos piden lo que corresponde, y la proporción de sobreprecios se dispara en "
+        f"**Casi 8 de cada 10 avisos piden lo que corresponde a su tamaño y ubicación, pero en "
         f"{nombre(foco.iloc[0].localidad)} ({pct(foco.iloc[0].arriba, 1)}) y "
-        f"{nombre(foco.iloc[1].localidad).split(' ')[0]} ({pct(foco.iloc[1].arriba, 1)})."
+        f"{nombre(foco.iloc[1].localidad).split(' ')[0]} ({pct(foco.iloc[1].arriba, 1)}) se dispara la "
+        f"proporción de alquileres que superan en más de un {pct(corte_alto)} tanto al modelo como a sus "
+        "vecinos comparables.**"
     )
     st.markdown(
-        f"Entrenamos un modelo con las características de cada aviso para estimar cuánto piden "
-        f"por departamentos equivalentes: **{miles(dentro)} avisos ({coma(dentro / len(explo), decimales=0)})** "
-        f"se ajustan a esa referencia, mientras que **{miles(alto + bajo)} ({coma((alto + bajo) / len(explo), decimales=0)})** "
-        "se apartan lo suficiente como para auditarlos frente a sus comparables directos."
+        "La pregunta tiene dos partes —**cuándo** un aviso pide de más o de menos, y **dónde** pasa—, y la "
+        "app las responde en ese orden. Entrenamos un modelo con las características de cada aviso para "
+        f"estimar cuánto piden por departamentos equivalentes: **{miles(dentro)} avisos "
+        f"({coma(dentro / len(explo), decimales=0)})** se ajustan a esa referencia, mientras que "
+        f"**{miles(alto + bajo)} ({coma((alto + bajo) / len(explo), decimales=0)})** se apartan lo suficiente "
+        "como para auditarlos frente a sus comparables directos."
     )
     c1, c2, c3 = st.columns(3)
     c1.metric("Precio acorde", miles(dentro))
@@ -929,20 +919,110 @@ def explora():
 # =============================================================================
 # PROBA EL MODELO (copa)
 # =============================================================================
+SIN_EJEMPLO = "a-mano"
+
+
+def slider_entero(info):
+    """Si los tres limites del rango son enteros, el slider trabaja con enteros."""
+    return all(float(info[clave]).is_integer() for clave in ("min", "max", "mediana"))
+
+
+def avisos_de_ejemplo(finales):
+    """Un aviso real de prueba por veredicto, de localidades distintas y tamanio tipico.
+
+    El cierre tiene que funcionar de un clic: quien llega al final no deberia
+    completar trece campos antes de ver a la app responder.
+    """
+    usables = [c for c in finales if c in explo.columns]
+    base = explo[explo.particion.eq("test")].dropna(subset=usables + ["precio"])
+    elegidos = []
+    for etiqueta in ("Sobrevalorado", "En linea", "Oportunidad"):
+        grupo = base[base.etiqueta.eq(etiqueta)]
+        sin_repetir = grupo[~grupo.localidad.isin([a["localidad"] for a in elegidos])]
+        grupo = sin_repetir if not sin_repetir.empty else grupo
+        if grupo.empty:
+            continue
+        distancia = (grupo.superficie_cubierta_m2 - grupo.superficie_cubierta_m2.median()).abs()
+        elegidos.append(grupo.loc[distancia.idxmin()].to_dict())
+    return elegidos
+
+
+def etiqueta_ejemplo(aviso):
+    dormitorios = "1 dorm" if aviso["dormitorios"] == 1 else f"{miles(aviso['dormitorios'])} dorm"
+    simbolo = "US$ " if aviso["moneda"] == "USD" else "$"
+    veredicto = NOMBRE_COMPARACION.get(aviso["etiqueta"], aviso["etiqueta"]).lower()
+    return (f"{nombre(aviso['localidad'])} · {miles(aviso['superficie_cubierta_m2'])} m² · {dormitorios} · "
+            f"{simbolo}{miles(aviso['precio'])} ({veredicto})")
+
+
+def cargar_ejemplo(finales):
+    """Vuelca un aviso real en el formulario, respetando los limites de cada control."""
+    clave = st.session_state.get("sim_ejemplo")
+    aviso = next((a for a in avisos_de_ejemplo(finales) if a["clave"] == clave), None)
+    if aviso is None:
+        return
+    for col in finales:
+        info = rangos.get(col)
+        if info is None or col not in aviso or pd.isna(aviso[col]):
+            continue
+        if info["tipo"] == "numerica":
+            valor = min(max(float(aviso[col]), float(info["min"])), float(info["max"]))
+            st.session_state[f"sim_{col}"] = int(round(valor)) if slider_entero(info) else round(valor, 1)
+        elif info["tipo"] == "categorica":
+            valor = str(int(aviso[col])) if col == "zona_geo" else str(aviso[col])
+            if valor in info["categorias"]:
+                st.session_state[f"sim_{col}"] = valor
+    st.session_state["sim_precio"] = float(aviso["precio"])
+
+
+def cerrar_con_el_aviso(clave_veredicto):
+    """Devuelve la respuesta general aplicada a este aviso: donde cae dentro del mercado."""
+    reparto = explo["etiqueta"].value_counts(normalize=True)
+    proporcion = pct(float(reparto.get(clave_veredicto, 0)), 1)
+    cierres = {
+        "Sobrevalorado": (
+            f"**Este aviso está entre el {proporcion} que pide más que sus equivalentes.** Como vimos en "
+            "Los casos, eso puede ser un sobreprecio o algo que el aviso no publica como dato: abrí la "
+            "publicación y fijate si ofrece equipamiento, si está a estrenar o si tiene algo que la ficha "
+            "no registra."
+        ),
+        "En linea": (
+            f"**Este aviso está entre el {proporcion} que pide lo que corresponde a su tamaño y ubicación.** "
+            "La diferencia con la referencia entra dentro del margen de error del propio modelo, así que no "
+            "afirmamos nada: ni caro ni barato."
+        ),
+        "Oportunidad": (
+            f"**Este aviso está entre el {proporcion} que pide menos que sus equivalentes.** Antes de "
+            "celebrar, revisá la publicación: puede ser una oportunidad real, un dato mal cargado o algo "
+            "que el aviso no cuenta."
+        ),
+    }
+    st.markdown(cierres.get(clave_veredicto, ""))
+
+
 def proba_el_modelo():
     st.header("Probá el modelo")
     st.markdown(
-        "Cargá las características de un departamento para estimar su alquiler por m². "
-        "El formulario ofrece categorías y rangos que vienen del conjunto de entrenamiento."
+        f"**Hasta acá respondimos la pregunta para los {miles(len(explo))} avisos que relevamos. "
+        "La que importa es la del aviso que estés mirando vos.**"
     )
-
     st.markdown(
-        "Probá con un aviso que estés mirando. Cargá sus características y el precio publicado. "
-        "Después, cambiá solo el precio para ver cuándo la diferencia supera los cortes y "
-        "compará el resultado con avisos parecidos."
+        "Cargá sus características y el precio que piden, y la app lo juzga con el mismo criterio que "
+        "recorriste: lo compara contra lo que pide el mercado por departamentos equivalentes y contra sus "
+        "vecinos directos. Podés partir de un aviso real y cambiarle lo que quieras."
     )
 
     finales = metrics["columnas_finales"]
+    ejemplos = avisos_de_ejemplo(finales)
+    if ejemplos:
+        etiquetas_ejemplos = {a["clave"]: etiqueta_ejemplo(a) for a in ejemplos}
+        st.selectbox(
+            "Partir de un aviso real", [SIN_EJEMPLO] + list(etiquetas_ejemplos), key="sim_ejemplo",
+            format_func=lambda c: "Cargar a mano" if c == SIN_EJEMPLO else etiquetas_ejemplos[c],
+            on_change=cargar_ejemplo, args=(finales,),
+        )
+        st.caption("Avisos del conjunto de prueba: el modelo no los vio al entrenar. Podés editarlos.")
+
     valores = {}
     cols_ui = st.columns(2)
     i = 0
@@ -956,35 +1036,43 @@ def proba_el_modelo():
         etiqueta = ETIQUETAS_COLUMNAS.get(col, col)
         destino = cols_ui[i % 2]
         i += 1
+        clave_estado = f"sim_{col}"
         with destino:
             if info["tipo"] == "numerica":
                 lo, hi, med = info["min"], info["max"], info["mediana"]
-                if float(lo).is_integer() and float(hi).is_integer() and float(med).is_integer():
-                    valores[col] = st.slider(etiqueta, min_value=int(lo), max_value=int(hi), value=int(med))
+                if slider_entero(info):
+                    st.session_state.setdefault(clave_estado, int(med))
+                    valores[col] = st.slider(etiqueta, min_value=int(lo), max_value=int(hi), key=clave_estado)
                 else:
+                    st.session_state.setdefault(clave_estado, round(med, 1))
                     valores[col] = st.slider(etiqueta, min_value=round(lo, 1), max_value=round(hi, 1),
-                                              value=round(med, 1))
+                                              key=clave_estado)
             elif info["tipo"] == "categorica":
+                categorias = info["categorias"]
                 etiquetas_cat = info.get("etiquetas")
+                if col == "zona_geo" and valores.get("localidad"):
+                    zonas_localidad = explo.loc[explo["localidad"] == valores["localidad"], "zona_geo"].dropna()
+                    disponibles = set(zonas_localidad.astype(int).astype(str))
+                    filtradas = [c for c in categorias if c in disponibles]
+                    if filtradas:
+                        mas_frecuente = str(int(zonas_localidad.mode().iloc[0]))
+                        categorias = sorted(filtradas, key=lambda c: c != mas_frecuente)
+                # al cambiar de localidad, la zona guardada puede no estar entre las de esa localidad
+                if st.session_state.get(clave_estado) not in categorias:
+                    st.session_state[clave_estado] = categorias[0]
                 if etiquetas_cat:
-                    categorias = info["categorias"]
-                    if col == "zona_geo" and valores.get("localidad"):
-                        zonas_localidad = explo.loc[explo["localidad"] == valores["localidad"], "zona_geo"].dropna()
-                        disponibles = set(zonas_localidad.astype(int).astype(str))
-                        filtradas = [c for c in categorias if c in disponibles]
-                        if filtradas:
-                            mas_frecuente = str(int(zonas_localidad.mode().iloc[0]))
-                            categorias = sorted(filtradas, key=lambda c: c != mas_frecuente)
-                    valores[col] = st.selectbox(etiqueta, categorias,
-                                                 format_func=lambda c, etiquetas=etiquetas_cat: etiquetas.get(c, c))
+                    valores[col] = st.selectbox(
+                        etiqueta, categorias, key=clave_estado,
+                        format_func=lambda c, etiquetas=etiquetas_cat: etiquetas.get(c, c))
                 else:
-                    valores[col] = st.selectbox(etiqueta, info["categorias"])
+                    valores[col] = st.selectbox(etiqueta, categorias, key=clave_estado)
             elif info["tipo"] == "fecha":
                 valores[col] = info["max"]
 
+    st.session_state.setdefault("sim_precio", 0.0)
     precio_pedido = st.number_input(
         "Precio mensual publicado (en la moneda elegida)",
-        min_value=0.0, value=0.0, step=1000.0,
+        min_value=0.0, step=1000.0, key="sim_precio",
     )
 
     if st.button("Predecir", type="primary"):
@@ -1031,6 +1119,7 @@ def proba_el_modelo():
             if not grupo.empty:
                 st.write(f"Mediana de los comparables: ${miles(mediana_comp)}/m².")
             mostrar_comparables(grupo)
+            cerrar_con_el_aviso(clave_veredicto)
         else:
             st.caption("Ingresá un precio mensual para compararlo con la referencia y otros avisos.")
 
@@ -1039,6 +1128,11 @@ def proba_el_modelo():
             if info.get("tipo") == "numerica" and not (info["min"] <= val <= info["max"]):
                 st.warning(f"{ETIQUETAS_COLUMNAS.get(col, col)} = {val} está fuera de lo que vio el entrenamiento "
                            f"({info['min']}–{info['max']}). La predicción extrapola.")
+
+    st.caption(
+        f"El criterio es el mismo en los {miles(len(explo))} avisos de la historia y en el tuyo: comparar "
+        "contra lo que pide el mercado por departamentos equivalentes, y confirmarlo con los vecinos."
+    )
 
 
 def ancla(nombre):
