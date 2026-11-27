@@ -184,16 +184,6 @@ NOMBRES_SECCIONES = {
     "Proba el modelo": "6 · Probá el modelo",
     "La respuesta": "5 · La respuesta",
 }
-RESUMEN_SECCIONES = [
-    "Qué queremos responder",
-    "Qué avisos juntamos",
-    "Qué mueve el precio",
-    "La referencia de cada aviso",
-    "Qué avisos se apartan y dónde",
-    "Juntamos todo y respondemos",
-    "Filtrá el mercado vos",
-    "Cargá un aviso y juzgalo",
-]
 ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "La respuesta": "respuesta", "Explora": "explora", "Proba el modelo": "simulador"}
 
 
@@ -204,9 +194,7 @@ def ir_a_seccion():
 st.sidebar.markdown("### Brújula Inmobiliaria")
 st.sidebar.caption("Alquileres de departamentos en el Gran Mendoza")
 st.sidebar.radio("Recorrido", SECCIONES, key="navegacion", on_change=ir_a_seccion,
-                 format_func=NOMBRES_SECCIONES.get, captions=RESUMEN_SECCIONES)
-st.sidebar.caption("La historia se lee en orden, de la pregunta a la respuesta. En el paso 6 las preguntas las "
-                   "hacés vos.")
+                 format_func=NOMBRES_SECCIONES.get)
 st.sidebar.divider()
 st.sidebar.markdown(
     "**Proyecto Integrador · Ciencia de Datos 2026**  \n"
