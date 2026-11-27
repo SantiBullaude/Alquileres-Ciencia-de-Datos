@@ -737,7 +737,7 @@ def casos(datos, cortes, csv_origen=None):
 def respuesta(datos, cortes, metrics):
     """El cierre del relato: junta lo que aporto cada paso y responde la pregunta de la portada."""
     st.header("La respuesta")
-    paso(6, "juntamos todo lo anterior y respondemos la pregunta.")
+    paso(5, "juntamos todo lo anterior y respondemos la pregunta.")
     total = len(datos)
     en_linea = datos.etiqueta.eq("En linea").sum()
     sobre = datos.etiqueta.eq("Sobrevalorado").sum()
@@ -785,9 +785,7 @@ def respuesta(datos, cortes, metrics):
         "mejor regla simple. Su propio margen de error define los cortes: son los percentiles 10 y 90 del error "
         "**en validación**, sobre avisos que el modelo no vio al entrenar. Dentro de esa banda no afirmamos nada.\n"
         "4. **Los casos.** Los avisos que superan los cortes se contrastan con sus vecinos comparables. Así vimos "
-        "dónde se concentran y qué tienen en común.\n"
-        "5. **Explorá y probá el modelo.** El mismo criterio queda a tu alcance: podés filtrar el mercado o cargar "
-        "un aviso concreto y ver de qué lado de los cortes cae."
+        "dónde se concentran y qué tienen en común."
     )
 
     st.markdown("#### El matiz")

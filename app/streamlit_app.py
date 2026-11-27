@@ -174,16 +174,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "Explora", "Proba el modelo", "La respuesta"]
+SECCIONES = ["El proyecto", "Los datos", "Lo que encontramos", "El modelo", "Los casos", "La respuesta", "Explora", "Proba el modelo"]
 NOMBRES_SECCIONES = {
     "El proyecto": "La pregunta",
     "Los datos": "1 · Los datos",
     "Lo que encontramos": "2 · Lo que encontramos",
     "El modelo": "3 · El modelo",
     "Los casos": "4 · Los casos",
-    "Explora": "5 · Explorá los avisos",
-    "Proba el modelo": "5 · Probá el modelo",
-    "La respuesta": "6 · La respuesta",
+    "Explora": "6 · Explorá los avisos",
+    "Proba el modelo": "6 · Probá el modelo",
+    "La respuesta": "5 · La respuesta",
 }
 RESUMEN_SECCIONES = [
     "Qué queremos responder",
@@ -191,9 +191,9 @@ RESUMEN_SECCIONES = [
     "Qué mueve el precio",
     "La referencia de cada aviso",
     "Qué avisos se apartan y dónde",
+    "Juntamos todo y respondemos",
     "Filtrá el mercado vos",
     "Cargá un aviso y juzgalo",
-    "Juntamos todo y respondemos",
 ]
 ANCLAS = {"El proyecto": "proyecto", "Los datos": "datos", "Lo que encontramos": "hallazgos", "El modelo": "modelo", "Los casos": "casos", "La respuesta": "respuesta", "Explora": "explora", "Proba el modelo": "simulador"}
 
@@ -206,7 +206,7 @@ st.sidebar.markdown("### Brújula Inmobiliaria")
 st.sidebar.caption("Alquileres de departamentos en el Gran Mendoza")
 st.sidebar.radio("Recorrido", SECCIONES, key="navegacion", on_change=ir_a_seccion,
                  format_func=NOMBRES_SECCIONES.get, captions=RESUMEN_SECCIONES)
-st.sidebar.caption("La historia se lee en orden, de la pregunta a la respuesta. En el paso 5 las preguntas las "
+st.sidebar.caption("La historia se lee en orden, de la pregunta a la respuesta. En el paso 6 las preguntas las "
                    "hacés vos.")
 st.sidebar.divider()
 st.sidebar.markdown(
@@ -246,8 +246,8 @@ def portada():
         "que controlar antes de comparar.\n"
         "3. **El modelo:** una referencia de precio para cada aviso, que le gana a las reglas simples.\n"
         "4. **Los casos:** qué avisos se apartan de esa referencia, dónde están y por qué.\n"
-        "5. **Explorá y probá el modelo:** el mismo criterio, aplicado por vos a los avisos que quieras.\n"
-        "6. **La respuesta:** al final, juntamos todo lo anterior y respondemos la pregunta."
+        "5. **La respuesta:** juntamos todo lo anterior y respondemos la pregunta.\n"
+        "6. **Explorá y probá el modelo:** después del cierre, aplicá el mismo criterio a los avisos que quieras."
     )
     st.markdown(
         f"Como punto de partida, así queda repartido el mercado cuando aplicamos ese criterio. Casi 8 de cada 10 "
@@ -845,7 +845,7 @@ def grafico_exploracion(datos):
 
 def explora():
     st.header("Explorá los avisos")
-    paso(5, "el mismo criterio, aplicado por vos al mercado que te interese.")
+    paso(6, "el mismo criterio, aplicado por vos al mercado que te interese.")
     st.markdown("Elegí qué avisos querés ver y compará sus características. Pasá el cursor por un punto para consultar el precio y la referencia del modelo.")
     st.markdown(
         "Para seguir uno de los casos, filtrá su localidad y buscá departamentos de "
@@ -909,7 +909,7 @@ def explora():
 # =============================================================================
 def proba_el_modelo():
     st.header("Probá el modelo")
-    paso(5, "el criterio de la respuesta, aplicado a un aviso que elijas.")
+    paso(6, "el criterio de la respuesta, aplicado a un aviso que elijas.")
     st.markdown(
         "Cargá las características de un departamento para estimar su alquiler por m². "
         "El formulario ofrece categorías y rangos que vienen del conjunto de entrenamiento."
@@ -1037,12 +1037,12 @@ el_modelo()
 ajuste(explo, metrics["test"])
 ancla("casos")
 casos(explo, metrics["cortes_residuo"], ORIGEN_CSV)
+ancla("respuesta")
+respuesta(explo, metrics["cortes_residuo"], metrics)
 ancla("explora")
 explora()
 ancla("simulador")
 proba_el_modelo()
-ancla("respuesta")
-respuesta(explo, metrics["cortes_residuo"], metrics)
 
 # La sidebar sigue al scroll: marca la seccion que se esta leyendo y, al hacer clic en una,
 # baja hasta ella sin recargar la app. Vive en la ventana de la app, asi que se instala una vez.
